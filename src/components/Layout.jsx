@@ -2,6 +2,7 @@ import { Outlet, NavLink } from 'react-router-dom'
 import { ErrorBoundary } from 'react-error-boundary'
 import { useAuth } from '../context/AuthContext'
 import { getAvatarGradient, getInitials } from '../utils/avatar'
+import OfflineBanner from './OfflineBanner'
 
 const navItems = [
   {
@@ -90,6 +91,7 @@ export default function Layout() {
 
       {/* Main content */}
       <main className="md:ml-64 min-h-screen pb-20 md:pb-0">
+        <OfflineBanner />
         {/* Mobile header */}
         <header className="md:hidden sticky top-0 z-30 flex items-center justify-between px-4 py-3 bg-surface-card/80 backdrop-blur-xl border-b border-stone-200/60">
           <div className="flex items-center gap-2.5">

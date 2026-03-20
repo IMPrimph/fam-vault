@@ -181,6 +181,7 @@ CREATE POLICY "invites_select" ON invites FOR SELECT USING (
 );
 CREATE POLICY "invites_insert" ON invites FOR INSERT WITH CHECK (
   is_admin() AND family_id = get_my_family_id()
+  AND member_id IN (SELECT id FROM members WHERE family_id = get_my_family_id())
 );
 CREATE POLICY "invites_update" ON invites FOR UPDATE USING (
   is_admin() AND family_id = get_my_family_id()

@@ -179,10 +179,10 @@ export default function DashboardPage() {
               <p className="text-sm text-text-muted mt-1">Upload your first document to get started.</p>
               {isAdmin && (
                 <button
-                  onClick={() => members[0] && navigate(`/member/${members[0].id}/upload`)}
+                  onClick={() => navigate('/family')}
                   className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 bg-primary-600 text-white rounded-xl text-sm font-semibold hover:bg-primary-700 transition-colors active:scale-[0.98]"
                 >
-                  Upload Document
+                  Go to Family to Upload
                 </button>
               )}
             </>
@@ -208,19 +208,11 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Upload FAB */}
-      {isAdmin && documents.length > 0 && (
-        <button
-          onClick={() => {
-            const target = selectedMember || members[0]?.id
-            if (target) navigate(`/member/${target}/upload`)
-          }}
-          className="fixed bottom-24 md:bottom-6 right-4 md:right-8 w-14 h-14 bg-gradient-to-br from-primary-500 to-primary-700 text-white rounded-2xl shadow-lg shadow-primary-300/50 hover:shadow-xl hover:shadow-primary-300/50 flex items-center justify-center transition-all active:scale-90 z-20"
-          title="Upload document"
-        >
-          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
-        </button>
-      )}
+      {/* Spacer for FAB overlap on mobile */}
+      {isAdmin && documents.length > 0 && <div className="h-20 md:h-0" />}
+
+      {/* Upload FAB with member picker */}
+      {isAdmin && documents.length > 0 && <UploadFab members={members} selectedMember={selectedMember} />}
 
       {/* Preview */}
       {previewDoc && (
@@ -245,10 +237,20 @@ function DocCard({ doc, getSignedUrl, onPreview, onDownload, onDelete }) {
     }
   }, [doc.file_url])
 
+  const [dlError, setDlError] = useState(false)
+
   async function handleDl(e) {
     e.stopPropagation()
     setDownloading(true)
-    try { await onDownload() } finally { setDownloading(false) }
+    setDlError(false)
+    try {
+      await onDownload()
+    } catch {
+      setDlError(true)
+      setTimeout(() => setDlError(false), 3000)
+    } finally {
+      setDownloading(false)
+    }
   }
 
   return (
@@ -286,10 +288,12 @@ function DocCard({ doc, getSignedUrl, onPreview, onDownload, onDelete }) {
           <button
             onClick={handleDl}
             disabled={downloading}
-            className="flex-1 inline-flex items-center justify-center gap-1 text-xs py-1.5 bg-primary-50 text-primary-700 rounded-lg hover:bg-primary-100 font-medium transition-colors"
+            className={`flex-1 inline-flex items-center justify-center gap-1 text-xs py-1.5 rounded-lg font-medium transition-colors ${
+              dlError ? 'bg-red-50 text-red-600' : 'bg-primary-50 text-primary-700 hover:bg-primary-100'
+            }`}
           >
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
-            {downloading ? '...' : 'Download'}
+            {dlError ? 'Failed' : downloading ? '...' : 'Download'}
           </button>
           {onDelete && (
             <button onClick={(e) => { e.stopPropagation(); onDelete() }} className="p-1.5 text-stone-300 hover:text-red-500 rounded-lg transition-colors" title="Delete">
@@ -299,5 +303,64 @@ function DocCard({ doc, getSignedUrl, onPreview, onDownload, onDelete }) {
         </div>
       </div>
     </div>
+  )
+}
+
+function UploadFab({ members, selectedMember }) {
+  const navigate = useNavigate()
+  const [showPicker, setShowPicker] = useState(false)
+
+  function handleClick() {
+    if (selectedMember) {
+      navigate(`/member/${selectedMember}/upload`)
+    } else if (members.length === 1) {
+      navigate(`/member/${members[0].id}/upload`)
+    } else {
+      setShowPicker(true)
+    }
+  }
+
+  return (
+    <>
+      <button
+        onClick={handleClick}
+        className="fixed bottom-24 md:bottom-6 right-4 md:right-8 w-14 h-14 bg-gradient-to-br from-primary-500 to-primary-700 text-white rounded-2xl shadow-lg shadow-primary-300/50 hover:shadow-xl hover:shadow-primary-300/50 flex items-center justify-center transition-all active:scale-90 z-20"
+        aria-label="Upload document"
+      >
+        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+      </button>
+
+      {/* Member picker popup */}
+      {showPicker && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end md:items-center justify-center p-4" onClick={() => setShowPicker(false)}>
+          <div className="w-full max-w-sm bg-surface-card rounded-2xl shadow-2xl border border-stone-200/60 overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="px-5 py-4 border-b border-stone-100">
+              <h3 className="text-base font-semibold text-text-primary">Upload for who?</h3>
+              <p className="text-xs text-text-muted mt-0.5">Select a family member</p>
+            </div>
+            <div className="p-2 max-h-64 overflow-auto">
+              {members.map(m => {
+                const grad = getAvatarGradient(m.name)
+                return (
+                  <button
+                    key={m.id}
+                    onClick={() => { setShowPicker(false); navigate(`/member/${m.id}/upload`) }}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-surface-hover transition-colors text-left"
+                  >
+                    <div className={`w-9 h-9 rounded-lg bg-gradient-to-br ${grad} flex items-center justify-center text-white text-xs font-semibold shadow-sm shrink-0`}>
+                      {getInitials(m.name)}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-text-primary">{m.name}</p>
+                      <p className="text-xs text-text-muted">{m.relationship}</p>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }

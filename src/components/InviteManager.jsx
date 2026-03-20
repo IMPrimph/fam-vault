@@ -26,15 +26,19 @@ export default function InviteManager({ familyId, members }) {
   }
 
   return (
-    <div className="space-y-4">
-      <h3 className="text-lg font-semibold text-gray-800">Invite Links</h3>
+    <div>
+      <div className="mb-4">
+        <h2 className="text-base font-semibold text-text-primary mb-1">Invite Links</h2>
+        <p className="text-sm text-text-muted">Generate unique links to invite family members. Each link is tied to a specific person.</p>
+      </div>
 
+      {/* Generate new invite */}
       {invitableMembers.length > 0 && (
-        <div className="flex gap-2">
+        <div className="flex gap-2 mb-5">
           <select
             value={selectedMember}
             onChange={e => setSelectedMember(e.target.value)}
-            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+            className="flex-1 px-3.5 py-2.5 bg-surface border border-stone-300 rounded-xl text-sm text-text-primary focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 outline-none transition-all"
           >
             <option value="">Select member to invite...</option>
             {invitableMembers.map(m => (
@@ -44,39 +48,45 @@ export default function InviteManager({ familyId, members }) {
           <button
             onClick={handleCreate}
             disabled={!selectedMember}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 text-sm font-medium"
+            className="px-5 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-semibold hover:bg-primary-700 disabled:opacity-50 transition-colors active:scale-[0.98]"
           >
-            Generate Link
+            Generate
           </button>
         </div>
       )}
 
+      {invitableMembers.length === 0 && invites.length === 0 && (
+        <p className="text-sm text-text-muted text-center py-4">All members have been invited or joined.</p>
+      )}
+
+      {/* Existing invites */}
       <div className="space-y-2">
         {invites.map(inv => (
-          <div key={inv.id} className="flex items-center justify-between bg-gray-50 rounded-lg p-3">
+          <div key={inv.id} className="flex items-center justify-between py-3 px-3 rounded-xl bg-surface-hover/50">
             <div>
-              <p className="font-medium text-sm text-gray-900">
-                {inv.members?.name} ({inv.members?.relationship})
+              <p className="text-sm font-medium text-text-primary">
+                {inv.members?.name} <span className="text-text-muted font-normal">({inv.members?.relationship})</span>
               </p>
-              <p className={`text-xs ${
-                inv.status === 'accepted' ? 'text-green-600' :
-                inv.status === 'revoked' ? 'text-red-500' : 'text-yellow-600'
+              <p className={`text-xs mt-0.5 font-medium ${
+                inv.status === 'accepted' ? 'text-emerald-600' :
+                inv.status === 'revoked' ? 'text-red-500' : 'text-amber-600'
               }`}>
-                {inv.status}
+                {inv.status === 'accepted' ? 'Joined' : inv.status === 'revoked' ? 'Revoked' : 'Pending'}
               </p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-1.5">
               {inv.status === 'pending' && (
                 <>
                   <button
                     onClick={() => copyLink(inv.token)}
-                    className="text-xs px-3 py-1.5 bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100 font-medium"
+                    className="inline-flex items-center gap-1 px-3 py-1.5 text-xs bg-primary-50 text-primary-700 rounded-lg hover:bg-primary-100 font-medium transition-colors"
                   >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9.75a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184" /></svg>
                     {copiedId === inv.token ? 'Copied!' : 'Copy Link'}
                   </button>
                   <button
                     onClick={() => revokeInvite(inv.id)}
-                    className="text-xs px-3 py-1.5 bg-red-50 text-red-700 rounded-md hover:bg-red-100 font-medium"
+                    className="px-3 py-1.5 text-xs text-red-500 hover:bg-red-50 rounded-lg font-medium transition-colors"
                   >
                     Revoke
                   </button>

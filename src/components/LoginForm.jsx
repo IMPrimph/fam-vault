@@ -27,8 +27,14 @@ export default function LoginForm() {
         <h3 className="text-lg font-semibold text-text-primary mb-1">Check your email</h3>
         <p className="text-sm text-text-secondary">We sent a login link to <strong className="text-text-primary">{email}</strong></p>
         <p className="text-xs text-text-muted mt-4">
-          Didn't get it? Check spam or try again in a minute.
+          Didn't get it? Check spam or wait a minute, then
         </p>
+        <button
+          onClick={() => { setSent(false); setError('') }}
+          className="mt-2 text-sm text-primary-600 hover:text-primary-700 font-medium"
+        >
+          Try again
+        </button>
       </div>
     )
   }

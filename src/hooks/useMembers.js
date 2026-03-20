@@ -47,11 +47,8 @@ export function useMembers(familyId) {
         .eq('id', spouseMemberId)
 
       if (spouseError) {
-        // Rollback: clear the one-way link we just created
-        await supabase
-          .from('members')
-          .update({ spouse_member_id: null })
-          .eq('id', data.id)
+        // Rollback: delete the entire member we just created (not just clear the link)
+        await supabase.from('members').delete().eq('id', data.id)
         throw new Error('Failed to create spouse link: ' + spouseError.message)
       }
     }

@@ -7,6 +7,7 @@ export function AuthProvider({ children }) {
   const [session, setSession] = useState(null)
   const [member, setMember] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [fetchError, setFetchError] = useState(null)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -30,11 +31,17 @@ export function AuthProvider({ children }) {
   async function fetchMember(userId) {
     const uid = userId || session?.user?.id
     if (!uid) { setLoading(false); return }
-    const { data } = await supabase
+    setFetchError(null)
+    const { data, error } = await supabase
       .from('members')
       .select('*, families(name)')
       .eq('user_id', uid)
       .single()
+    if (error && error.code !== 'PGRST116') {
+      // PGRST116 = "no rows" (user genuinely has no family) — that's fine
+      // Any other error is a real failure
+      setFetchError(error.message)
+    }
     setMember(data)
     setLoading(false)
   }
@@ -58,7 +65,7 @@ export function AuthProvider({ children }) {
   const isAdmin = member?.role === 'admin'
 
   return (
-    <AuthContext.Provider value={{ session, member, loading, isAdmin, signInWithEmail, signOut, fetchMember }}>
+    <AuthContext.Provider value={{ session, member, loading, fetchError, isAdmin, signInWithEmail, signOut, fetchMember }}>
       {children}
     </AuthContext.Provider>
   )
