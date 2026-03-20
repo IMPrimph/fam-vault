@@ -70,16 +70,11 @@ export function useMembers(familyId) {
   }
 
   async function deleteMember(id) {
-    // First delete storage files for this member's documents
+    // Collect file paths before deleting (for cleanup after)
     const { data: docs } = await supabase
       .from('documents')
       .select('file_url')
       .eq('member_id', id)
-
-    if (docs?.length) {
-      const paths = docs.map(d => d.file_url)
-      await supabase.storage.from('documents').remove(paths)
-    }
 
     // Clear spouse back-reference
     const member = members.find(m => m.id === id)
@@ -90,11 +85,18 @@ export function useMembers(familyId) {
         .eq('id', member.spouse_member_id)
     }
 
+    // Delete the member row (cascades to documents in DB)
     const { error } = await supabase
       .from('members')
       .delete()
       .eq('id', id)
     if (error) throw error
+
+    // Best-effort storage cleanup after DB is consistent
+    if (docs?.length) {
+      const paths = docs.map(d => d.file_url)
+      await supabase.storage.from('documents').remove(paths).catch(() => {})
+    }
     await fetchMembers()
   }
 

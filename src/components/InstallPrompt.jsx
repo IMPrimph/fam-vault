@@ -78,7 +78,7 @@ export default function InstallPrompt() {
             </button>
           </div>
         </div>
-        <button onClick={() => setDismissed(true)} className="text-text-muted hover:text-text-secondary p-0.5">
+        <button onClick={() => setDismissed(true)} aria-label="Dismiss" className="text-text-muted hover:text-text-secondary p-0.5">
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
         </button>
       </div>

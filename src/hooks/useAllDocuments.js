@@ -29,8 +29,11 @@ export function useAllDocuments(familyId) {
   }
 
   async function deleteDocument(doc) {
-    await supabase.storage.from('documents').remove([doc.file_url])
-    await supabase.from('documents').delete().eq('id', doc.id)
+    // Delete DB row first, then storage (best-effort).
+    // If DB fails, nothing is lost. If storage fails, we have an orphan (harmless).
+    const { error } = await supabase.from('documents').delete().eq('id', doc.id)
+    if (error) throw error
+    await supabase.storage.from('documents').remove([doc.file_url]).catch(() => {})
     await fetchAll()
   }
 

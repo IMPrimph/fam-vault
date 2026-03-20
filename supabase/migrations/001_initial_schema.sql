@@ -137,35 +137,54 @@ CREATE POLICY "families_update" ON families FOR UPDATE USING (is_admin());
 
 -- --- members ---
 CREATE POLICY "members_select" ON members FOR SELECT USING (family_id = get_my_family_id());
-CREATE POLICY "members_insert" ON members FOR INSERT WITH CHECK (is_admin());
+CREATE POLICY "members_insert" ON members FOR INSERT WITH CHECK (
+  is_admin() AND family_id = get_my_family_id()
+);
 -- Only admins can update members directly. Non-admin self-edits go through update_my_profile RPC.
-CREATE POLICY "members_update" ON members FOR UPDATE USING (is_admin());
-CREATE POLICY "members_delete" ON members FOR DELETE USING (is_admin());
+CREATE POLICY "members_update" ON members FOR UPDATE USING (
+  is_admin() AND family_id = get_my_family_id()
+);
+CREATE POLICY "members_delete" ON members FOR DELETE USING (
+  is_admin() AND family_id = get_my_family_id()
+);
 
 -- --- categories ---
 CREATE POLICY "categories_select" ON categories FOR SELECT USING (family_id = get_my_family_id());
 CREATE POLICY "categories_insert" ON categories FOR INSERT WITH CHECK (family_id = get_my_family_id());
-CREATE POLICY "categories_update" ON categories FOR UPDATE USING (is_admin());
-CREATE POLICY "categories_delete" ON categories FOR DELETE USING (is_admin());
+CREATE POLICY "categories_update" ON categories FOR UPDATE USING (
+  is_admin() AND family_id = get_my_family_id()
+);
+CREATE POLICY "categories_delete" ON categories FOR DELETE USING (
+  is_admin() AND family_id = get_my_family_id()
+);
 
 -- --- documents ---
 CREATE POLICY "documents_select" ON documents FOR SELECT USING (
   member_id IN (SELECT id FROM members WHERE family_id = get_my_family_id())
 );
 CREATE POLICY "documents_insert" ON documents FOR INSERT WITH CHECK (
-  is_admin() OR member_id = (SELECT id FROM members WHERE user_id = auth.uid())
+  member_id IN (SELECT id FROM members WHERE family_id = get_my_family_id())
+  AND (is_admin() OR member_id = (SELECT id FROM members WHERE user_id = auth.uid()))
 );
 CREATE POLICY "documents_update" ON documents FOR UPDATE USING (
-  is_admin() OR uploaded_by = auth.uid()
+  member_id IN (SELECT id FROM members WHERE family_id = get_my_family_id())
+  AND (is_admin() OR uploaded_by = auth.uid())
 );
 CREATE POLICY "documents_delete" ON documents FOR DELETE USING (
-  is_admin() OR uploaded_by = auth.uid()
+  member_id IN (SELECT id FROM members WHERE family_id = get_my_family_id())
+  AND (is_admin() OR uploaded_by = auth.uid())
 );
 
 -- --- invites ---
-CREATE POLICY "invites_select" ON invites FOR SELECT USING (is_admin());
-CREATE POLICY "invites_insert" ON invites FOR INSERT WITH CHECK (is_admin());
-CREATE POLICY "invites_update" ON invites FOR UPDATE USING (is_admin());
+CREATE POLICY "invites_select" ON invites FOR SELECT USING (
+  is_admin() AND family_id = get_my_family_id()
+);
+CREATE POLICY "invites_insert" ON invites FOR INSERT WITH CHECK (
+  is_admin() AND family_id = get_my_family_id()
+);
+CREATE POLICY "invites_update" ON invites FOR UPDATE USING (
+  is_admin() AND family_id = get_my_family_id()
+);
 
 -- ============================================
 -- RPC Functions (SECURITY DEFINER — bypass RLS)

@@ -15,7 +15,13 @@ export default function InvitePage() {
 
   useEffect(() => {
     lookupInvite(token)
-      .then(data => setInvite(data))
+      .then(data => {
+        if (!data || !data.family_name) {
+          setError('Invalid invite link.')
+        } else {
+          setInvite(data)
+        }
+      })
       .catch(() => setError('Invalid invite link.'))
       .finally(() => setLoading(false))
   }, [token])

@@ -33,7 +33,7 @@ export default function AddMemberForm({ members, onSubmit, onClose }) {
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-stone-100">
           <h2 className="text-lg font-semibold text-text-primary">Add Family Member</h2>
-          <button onClick={onClose} className="p-1 rounded-lg text-text-muted hover:bg-surface-hover transition-colors">
+          <button onClick={onClose} aria-label="Close" className="p-1 rounded-lg text-text-muted hover:bg-surface-hover transition-colors">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
           </button>
         </div>
