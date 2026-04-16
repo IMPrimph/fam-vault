@@ -38,3 +38,10 @@ export function getThumbPath(fileUrl) {
   if (dotIdx === -1) return fileUrl + '_thumb.jpg'
   return fileUrl.substring(0, dotIdx) + '_thumb.jpg'
 }
+
+// Some older uploads have no thumb (thumb generation failed silently at
+// upload time). Once we see a 400 for one, remember it so subsequent
+// renders skip the request and don't log more errors.
+const missingThumbs = new Set()
+export function markThumbMissing(path) { missingThumbs.add(path) }
+export function isThumbMissing(path) { return missingThumbs.has(path) }

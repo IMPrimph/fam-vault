@@ -21,14 +21,16 @@ export function useInvites(familyId) {
   })
 
   const createMutation = useMutation({
-    mutationFn: async (memberId) => {
+    mutationFn: async ({ memberId, email }) => {
       const token = crypto.randomUUID().replace(/-/g, '')
+      const cleanedEmail = email?.trim().toLowerCase() || null
       const { data, error } = await supabase
         .from('invites')
         .insert({
           family_id: familyId,
           member_id: memberId,
           token,
+          email: cleanedEmail,
         })
         .select('*, members(name, relationship)')
         .single()

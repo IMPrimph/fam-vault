@@ -1,7 +1,7 @@
 import { supabase } from './supabase'
 import { db } from './offlineDB'
-import { encryptBlob, decryptBlob, deleteKey } from './encryption'
-import { getThumbPath } from './thumbnails'
+import { encryptBlob, decryptBlob, deleteKey, initKey } from './encryption'
+import { getThumbPath, isThumbMissing, markThumbMissing } from './thumbnails'
 import { isOfflineEnabled } from './offlinePrefs'
 import { clearQueryCache } from './idbPersister'
 
@@ -12,6 +12,10 @@ let status = {
   lastSyncedAt: null,
   failedCount: 0,
 }
+// Bumped on every sync cancellation (signOut, user switch). In-flight sync
+// loops check this and bail. Prevents late encryptBlob calls from
+// re-initializing a fresh key into the next user's IDB.
+let syncGeneration = 0
 const listeners = new Set()
 
 function emit(patch) {
@@ -27,18 +31,28 @@ export function subscribeSyncStatus(cb) {
 
 export function getSyncStatus() { return status }
 
+export function cancelSync() {
+  syncGeneration++
+  if (status.state === 'syncing') emit({ state: 'idle', progress: null })
+}
+
 export async function syncAllDocs(familyId) {
   if (!familyId || status.state === 'syncing' || !navigator.onLine) return
   if (!isOfflineEnabled()) return
 
+  const gen = ++syncGeneration
   emit({ state: 'syncing', progress: { current: 0, total: 0 }, error: null, failedCount: 0 })
 
   try {
+    await initKey()
+    if (gen !== syncGeneration) return
+
     const { data: remoteDocs, error } = await supabase
       .from('documents')
       .select('id, file_url, file_type, updated_at, members!inner(family_id)')
       .eq('members.family_id', familyId)
     if (error) throw error
+    if (gen !== syncGeneration) return
 
     const localMeta = await db.blob_meta.toArray()
     const localByPath = new Map(localMeta.map(m => [m.filePath, m]))
@@ -54,7 +68,10 @@ export async function syncAllDocs(familyId) {
       if (doc.file_type?.startsWith('image/')) {
         const thumbPath = getThumbPath(doc.file_url)
         const localThumb = localByPath.get(thumbPath)
-        if (!localThumb || localThumb.updated_at < remoteTs) {
+        // Skip thumbs we've already discovered missing this session — some
+        // older uploads never generated one, and we don't want to spam the
+        // Storage sign endpoint with 400s on every sync.
+        if ((!localThumb || localThumb.updated_at < remoteTs) && !isThumbMissing(thumbPath)) {
           toDownload.push({ docId: doc.id, filePath: thumbPath, mime: 'image/jpeg', updated_at: remoteTs })
         }
       }
@@ -62,6 +79,7 @@ export async function syncAllDocs(familyId) {
 
     const toDelete = localMeta.filter(m => !remoteDocIds.has(m.docId))
     for (const m of toDelete) {
+      if (gen !== syncGeneration) return
       await db.blob_meta.delete(m.filePath)
       await db.blob_data.delete(m.filePath)
     }
@@ -71,15 +89,19 @@ export async function syncAllDocs(familyId) {
     let current = 0
     let failedCount = 0
     for (const item of toDownload) {
+      if (gen !== syncGeneration) return
       try {
-        await downloadAndCache(item)
+        await downloadAndCache(item, gen)
       } catch (err) {
+        if (gen !== syncGeneration) return
         failedCount++
         console.warn('Offline cache failed for', item.filePath, err)
       }
       current++
       emit({ progress: { current, total: toDownload.length }, failedCount })
     }
+
+    if (gen !== syncGeneration) return
 
     const lastSyncedAt = Date.now()
     await db.meta.put({ key: 'lastSyncedAt', value: lastSyncedAt })
@@ -90,23 +112,35 @@ export async function syncAllDocs(familyId) {
       failedCount,
     })
   } catch (err) {
+    if (gen !== syncGeneration) return
     emit({ state: 'error', progress: null, error: err.message })
   }
 }
 
-async function downloadAndCache({ docId, filePath, mime, updated_at }) {
+async function downloadAndCache({ docId, filePath, mime, updated_at }, gen) {
   const { data, error } = await supabase.storage
     .from('documents')
     .createSignedUrl(filePath, 3600)
-  if (error) throw error
+  if (error) {
+    // Missing thumbnail object is expected for older uploads. Remember it
+    // so this sync (and later ones) skip cleanly without counting a failure.
+    if (filePath.endsWith('_thumb.jpg')) {
+      markThumbMissing(filePath)
+      return
+    }
+    throw error
+  }
+  if (gen !== syncGeneration) return
 
   const resp = await fetch(data.signedUrl)
   if (!resp.ok) {
     if (resp.status === 404 || resp.status === 400) return
     throw new Error(`Download failed: ${resp.status}`)
   }
+  if (gen !== syncGeneration) return
   const blob = await resp.blob()
   const { cipher, iv } = await encryptBlob(blob)
+  if (gen !== syncGeneration) return
 
   const effectiveMime = mime || blob.type
   await db.transaction('rw', db.blob_meta, db.blob_data, async () => {
@@ -152,6 +186,7 @@ export async function clearOfflineCache() {
 }
 
 export async function wipeOfflineData() {
+  cancelSync()
   await clearOfflineCache()
   await deleteKey()
 }

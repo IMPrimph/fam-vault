@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
-import { getCachedSignedUrl } from '../lib/signedUrlCache'
+import { getCachedSignedUrl, invalidateCachedUrl } from '../lib/signedUrlCache'
 import { generateThumbnail, getThumbPath } from '../lib/thumbnails'
 import { removeFromOfflineCache } from '../lib/offlineSync'
 
@@ -67,40 +67,38 @@ export function useDocuments(memberId) {
         throw error
       }
 
-      return data
+      return { doc: data, familyId }
     },
-    onSuccess: () => {
+    onSuccess: ({ familyId }) => {
       queryClient.invalidateQueries({ queryKey: ['documents', memberId] })
       queryClient.invalidateQueries({ queryKey: ['allDocuments'] })
+      if (familyId) queryClient.invalidateQueries({ queryKey: ['members', familyId] })
+      queryClient.invalidateQueries({ queryKey: ['storageUsage'] })
     },
   })
 
   const deleteMutation = useMutation({
     mutationFn: async (doc) => {
-      const origResult = await supabase.storage.from('documents').remove([doc.file_url])
-      if (origResult.error) console.warn('Storage delete failed (original)', doc.file_url, origResult.error)
-
-      const thumbResult = await supabase.storage.from('documents').remove([getThumbPath(doc.file_url)])
-      if (thumbResult.error) console.warn('Storage delete failed (thumb)', getThumbPath(doc.file_url), thumbResult.error)
-
-      const { error } = await supabase
-        .from('documents')
-        .delete()
-        .eq('id', doc.id)
+      const { data, error } = await supabase.rpc('delete_document', { doc_id: doc.id })
       if (error) throw error
-
+      if (data?.error) throw new Error(data.error)
+      invalidateCachedUrl(doc.file_url)
+      invalidateCachedUrl(getThumbPath(doc.file_url))
       await removeFromOfflineCache(doc.file_url).catch(e => console.warn('Offline cache remove failed', e))
+      return doc
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['documents', memberId] })
       queryClient.invalidateQueries({ queryKey: ['allDocuments'] })
+      queryClient.invalidateQueries({ queryKey: ['members'] })
+      queryClient.invalidateQueries({ queryKey: ['storageUsage'] })
     },
   })
 
   return {
     documents,
     loading,
-    uploadDocument: uploadMutation.mutateAsync,
+    uploadDocument: async (args) => (await uploadMutation.mutateAsync(args)).doc,
     deleteDocument: deleteMutation.mutateAsync,
     getSignedUrl: getCachedSignedUrl,
     refetch: () => queryClient.invalidateQueries({ queryKey: ['documents', memberId] }),

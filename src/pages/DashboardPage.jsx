@@ -6,7 +6,7 @@ import { useAllDocuments } from '../hooks/useAllDocuments'
 import { useRecentlyViewed } from '../hooks/useRecentlyViewed'
 import { useStarred } from '../hooks/useStarred'
 import { getAvatarGradient, getInitials } from '../utils/avatar'
-import { getThumbPath } from '../lib/thumbnails'
+import { getThumbPath, isThumbMissing, markThumbMissing } from '../lib/thumbnails'
 import DocumentPreview from '../components/DocumentPreview'
 import StorageWarning from '../components/StorageWarning'
 
@@ -15,7 +15,7 @@ export default function DashboardPage() {
   const { member, isAdmin } = useAuth()
   const { members } = useMembers(member?.family_id)
   const { documents, loading, getSignedUrl, deleteDocument } = useAllDocuments(member?.family_id)
-  const { recentIds, trackView } = useRecentlyViewed()
+  const { recentIds, trackView } = useRecentlyViewed(member?.user_id)
   const { toggleStar, isStarred } = useStarred(member?.user_id)
 
   const [selectedMember, setSelectedMember] = useState(null)
@@ -63,11 +63,16 @@ export default function DashboardPage() {
   }, [documents, selectedMember, selectedCategory, showStarred, isStarred, search])
 
   async function handleDownload(doc) {
-    const url = await getSignedUrl(doc.file_url)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = doc.label + '.' + doc.file_url.split('.').pop()
-    a.click()
+    try {
+      const url = await getSignedUrl(doc.file_url)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = doc.label + '.' + doc.file_url.split('.').pop()
+      a.click()
+    } catch (err) {
+      console.warn('Download failed', err)
+      throw err
+    }
   }
 
   async function handleDelete(doc) {
@@ -265,14 +270,21 @@ function DocCard({ doc, getSignedUrl, onPreview, onDownload, onDelete, starred, 
   const gradient = getAvatarGradient(memberName)
 
   useEffect(() => {
-    if (isImage && getSignedUrl) {
-      getSignedUrl(getThumbPath(doc.file_url))
-        .then(url => setThumbUrl(url))
-        .catch(() => {
-          getSignedUrl(doc.file_url).then(url => setThumbUrl(url)).catch(() => {})
-        })
+    if (!isImage || !getSignedUrl) return
+    let cancelled = false
+    const thumbPath = getThumbPath(doc.file_url)
+    const fetchFull = () => getSignedUrl(doc.file_url)
+      .then(url => { if (!cancelled) setThumbUrl(url) })
+      .catch(() => {})
+    if (isThumbMissing(thumbPath)) {
+      fetchFull()
+    } else {
+      getSignedUrl(thumbPath)
+        .then(url => { if (!cancelled) setThumbUrl(url) })
+        .catch(() => { if (!cancelled) fetchFull() })
     }
-  }, [doc.file_url])
+    return () => { cancelled = true }
+  }, [doc.file_url, isImage, getSignedUrl])
 
   const [dlError, setDlError] = useState(false)
 
@@ -301,7 +313,8 @@ function DocCard({ doc, getSignedUrl, onPreview, onDownload, onDelete, starred, 
             className="w-full h-full object-cover"
             loading="lazy"
             onError={() => {
-              if (getSignedUrl && thumbUrl) {
+              markThumbMissing(getThumbPath(doc.file_url))
+              if (getSignedUrl) {
                 getSignedUrl(doc.file_url).then(url => setThumbUrl(url)).catch(() => setThumbUrl(null))
               }
             }}
@@ -366,14 +379,21 @@ function RecentCard({ doc, getSignedUrl, onPreview }) {
   const isImage = doc.file_type?.startsWith('image/')
 
   useEffect(() => {
-    if (isImage && getSignedUrl) {
-      getSignedUrl(getThumbPath(doc.file_url))
-        .then(url => setThumbUrl(url))
-        .catch(() => {
-          getSignedUrl(doc.file_url).then(url => setThumbUrl(url)).catch(() => {})
-        })
+    if (!isImage || !getSignedUrl) return
+    let cancelled = false
+    const thumbPath = getThumbPath(doc.file_url)
+    const fetchFull = () => getSignedUrl(doc.file_url)
+      .then(url => { if (!cancelled) setThumbUrl(url) })
+      .catch(() => {})
+    if (isThumbMissing(thumbPath)) {
+      fetchFull()
+    } else {
+      getSignedUrl(thumbPath)
+        .then(url => { if (!cancelled) setThumbUrl(url) })
+        .catch(() => { if (!cancelled) fetchFull() })
     }
-  }, [doc.file_url])
+    return () => { cancelled = true }
+  }, [doc.file_url, isImage, getSignedUrl])
 
   return (
     <button
@@ -387,6 +407,7 @@ function RecentCard({ doc, getSignedUrl, onPreview }) {
             alt={doc.label}
             className="w-full h-full object-cover"
             onError={() => {
+              markThumbMissing(getThumbPath(doc.file_url))
               if (getSignedUrl) getSignedUrl(doc.file_url).then(url => setThumbUrl(url)).catch(() => setThumbUrl(null))
             }}
           />

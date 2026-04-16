@@ -12,18 +12,20 @@ const GRADIENTS = [
 ]
 
 export function getAvatarGradient(name) {
+  const safe = name || ''
   let hash = 0
-  for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash)
+  for (let i = 0; i < safe.length; i++) {
+    hash = safe.charCodeAt(i) + ((hash << 5) - hash)
   }
   return GRADIENTS[Math.abs(hash) % GRADIENTS.length]
 }
 
 export function getInitials(name) {
-  return name
+  return (name || '')
     .split(' ')
     .map(n => n[0])
+    .filter(Boolean)
     .join('')
     .toUpperCase()
-    .slice(0, 2)
+    .slice(0, 2) || '?'
 }

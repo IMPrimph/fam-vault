@@ -1,10 +1,14 @@
 import { useState } from 'react'
 import { useInvites } from '../hooks/useInvites'
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
 export default function InviteManager({ familyId, members }) {
   const { invites, createInvite, revokeInvite } = useInvites(familyId)
   const [selectedMember, setSelectedMember] = useState('')
+  const [email, setEmail] = useState('')
   const [copiedId, setCopiedId] = useState(null)
+  const [error, setError] = useState('')
 
   const invitableMembers = members.filter(m => {
     if (m.user_id) return false
@@ -14,8 +18,15 @@ export default function InviteManager({ familyId, members }) {
 
   async function handleCreate() {
     if (!selectedMember) return
-    await createInvite(selectedMember)
+    const trimmed = email.trim()
+    if (!trimmed || !EMAIL_RE.test(trimmed)) {
+      setError('Enter the email the invitee will sign in with — this binds the invite to their account.')
+      return
+    }
+    setError('')
+    await createInvite({ memberId: selectedMember, email: trimmed })
     setSelectedMember('')
+    setEmail('')
   }
 
   function copyLink(token) {
@@ -34,24 +45,35 @@ export default function InviteManager({ familyId, members }) {
 
       {/* Generate new invite */}
       {invitableMembers.length > 0 && (
-        <div className="flex gap-2 mb-5">
+        <div className="space-y-2 mb-5">
           <select
             value={selectedMember}
             onChange={e => setSelectedMember(e.target.value)}
-            className="flex-1 px-3.5 py-2.5 bg-surface border border-stone-300 rounded-xl text-sm text-text-primary focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 outline-none transition-all"
+            className="w-full px-3.5 py-2.5 bg-surface border border-stone-300 rounded-xl text-sm text-text-primary focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 outline-none transition-all"
           >
             <option value="">Select member to invite...</option>
             {invitableMembers.map(m => (
               <option key={m.id} value={m.id}>{m.name} ({m.relationship})</option>
             ))}
           </select>
-          <button
-            onClick={handleCreate}
-            disabled={!selectedMember}
-            className="px-5 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-semibold hover:bg-primary-700 disabled:opacity-50 transition-colors active:scale-[0.98]"
-          >
-            Generate
-          </button>
+          <div className="flex gap-2">
+            <input
+              type="email"
+              value={email}
+              onChange={e => { setEmail(e.target.value); if (error) setError('') }}
+              placeholder="Email address for this invite"
+              className="flex-1 px-3.5 py-2.5 bg-surface border border-stone-300 rounded-xl text-sm text-text-primary placeholder:text-text-muted focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 outline-none transition-all"
+            />
+            <button
+              onClick={handleCreate}
+              disabled={!selectedMember || !email.trim()}
+              className="px-5 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-semibold hover:bg-primary-700 disabled:opacity-50 transition-colors active:scale-[0.98]"
+            >
+              Generate
+            </button>
+          </div>
+          {error && <p className="text-xs text-red-600">{error}</p>}
+          <p className="text-[11px] text-text-muted">Invites expire in 7 days and can only be accepted by someone signing in with the email above.</p>
         </div>
       )}
 

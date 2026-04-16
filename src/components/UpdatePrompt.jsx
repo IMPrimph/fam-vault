@@ -4,7 +4,9 @@ export default function UpdatePrompt() {
   const {
     needRefresh: [needRefresh],
     updateServiceWorker,
-  } = useRegisterSW()
+  } = useRegisterSW({
+    onRegisterError: (err) => console.warn('Service worker registration failed', err),
+  })
 
   if (!needRefresh) return null
 

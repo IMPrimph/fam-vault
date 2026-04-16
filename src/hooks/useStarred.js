@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 
 function getKey(userId) {
   return `fam-vault-starred-${userId || 'anon'}`
@@ -14,6 +14,8 @@ function load(userId) {
 
 export function useStarred(userId) {
   const [starred, setStarred] = useState(() => load(userId))
+
+  useEffect(() => { setStarred(load(userId)) }, [userId])
 
   const toggleStar = useCallback((docId) => {
     setStarred(prev => {

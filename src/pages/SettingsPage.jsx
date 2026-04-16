@@ -243,6 +243,14 @@ function OfflineSettings({ familyId }) {
     return () => { alive = false }
   }, [state, statsVersion])
 
+  // While syncing, refresh the size/count card every 2s so the user sees
+  // bytes climb. Without this, the UI only updates at sync start/end.
+  useEffect(() => {
+    if (state !== 'syncing') return
+    const id = setInterval(() => setStatsVersion(v => v + 1), 2000)
+    return () => clearInterval(id)
+  }, [state])
+
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 60_000)
     return () => clearInterval(id)

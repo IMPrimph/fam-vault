@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 
-export default function LoginForm() {
+export default function LoginForm({ prefillEmail = '', lockEmail = false }) {
   const { signInWithEmail } = useAuth()
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(prefillEmail)
   const [sent, setSent] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -49,11 +49,15 @@ export default function LoginForm() {
           id="email"
           type="email"
           required
+          readOnly={lockEmail}
           value={email}
           onChange={e => setEmail(e.target.value)}
           placeholder="you@example.com"
-          className="w-full px-3.5 py-2.5 bg-surface border border-stone-300 rounded-xl text-sm text-text-primary placeholder:text-text-muted focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 outline-none transition-all"
+          className={`w-full px-3.5 py-2.5 bg-surface border border-stone-300 rounded-xl text-sm text-text-primary placeholder:text-text-muted focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 outline-none transition-all ${lockEmail ? 'bg-surface-muted cursor-not-allowed' : ''}`}
         />
+        {lockEmail && (
+          <p className="text-[11px] text-text-muted mt-1.5">This invite is tied to this email. Signing in with a different email will be rejected.</p>
+        )}
       </div>
       {error && <p className="text-red-600 text-sm bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
       <button

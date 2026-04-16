@@ -26,7 +26,8 @@ export async function deleteKey() {
 }
 
 export async function encryptBlob(blob) {
-  const key = await getKey() || await initKey()
+  const key = await getKey()
+  if (!key) throw new Error('No encryption key')
   const iv = crypto.getRandomValues(new Uint8Array(12))
   const data = await blob.arrayBuffer()
   const cipher = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, data)

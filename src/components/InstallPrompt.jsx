@@ -15,28 +15,27 @@ export default function InstallPrompt() {
   useEffect(() => {
     if (isApp) return
 
-    // Also listen for display mode changes (in case user installs while using)
     const mq = window.matchMedia('(display-mode: standalone)')
-    const handler = (e) => { if (e.matches) setIsApp(true) }
-    mq.addEventListener('change', handler)
+    const onDisplayChange = (e) => { if (e.matches) setIsApp(true) }
+    mq.addEventListener('change', onDisplayChange)
 
-    function promptHandler(e) {
+    const onBeforeInstall = (e) => {
       e.preventDefault()
       setDeferredPrompt(e)
     }
-    window.addEventListener('beforeinstallprompt', promptHandler)
-
-    // If app was just installed, hide the prompt
-    window.addEventListener('appinstalled', () => {
+    const onInstalled = () => {
       setDeferredPrompt(null)
       setIsApp(true)
-    })
+    }
+    window.addEventListener('beforeinstallprompt', onBeforeInstall)
+    window.addEventListener('appinstalled', onInstalled)
 
     return () => {
-      window.removeEventListener('beforeinstallprompt', promptHandler)
-      mq.removeEventListener('change', handler)
+      window.removeEventListener('beforeinstallprompt', onBeforeInstall)
+      window.removeEventListener('appinstalled', onInstalled)
+      mq.removeEventListener('change', onDisplayChange)
     }
-  }, [])
+  }, [isApp])
 
   async function handleInstall() {
     if (!deferredPrompt) return

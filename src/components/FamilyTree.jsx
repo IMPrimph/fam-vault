@@ -17,10 +17,17 @@ export default function FamilyTree({ members }) {
   const [nodes, setNodes, onNodesChange] = useNodesState(layoutNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(layoutEdges)
 
+  // Only rerun when the graph's topology actually changes — prevents React
+  // Query refetches (which return new array identities but identical data)
+  // from wiping out drag/position state the user just set.
+  const nodeFingerprint = useMemo(() => layoutNodes.map(n => n.id).join('|'), [layoutNodes])
+  const edgeFingerprint = useMemo(() => layoutEdges.map(e => `${e.source}-${e.target}`).join('|'), [layoutEdges])
+
   useEffect(() => {
     setNodes(layoutNodes)
     setEdges(layoutEdges)
-  }, [layoutNodes, layoutEdges])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodeFingerprint, edgeFingerprint])
 
   // Close fullscreen on Escape
   useEffect(() => {

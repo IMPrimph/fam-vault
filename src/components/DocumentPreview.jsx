@@ -10,11 +10,13 @@ export default function DocumentPreview({ doc, getSignedUrl, onClose }) {
   const memberName = doc.members?.name || ''
 
   useEffect(() => {
-    getSignedUrl(doc.file_url).then(u => {
-      setUrl(u)
-      setLoading(false)
-    })
-  }, [doc.file_url])
+    let cancelled = false
+    setLoading(true)
+    getSignedUrl(doc.file_url)
+      .then(u => { if (!cancelled) { setUrl(u); setLoading(false) } })
+      .catch(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [doc.file_url, getSignedUrl])
 
   // Close on Escape key
   useEffect(() => {

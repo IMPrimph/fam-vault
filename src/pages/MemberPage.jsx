@@ -17,6 +17,7 @@ export default function MemberPage() {
   const { documents, loading, deleteDocument, getSignedUrl } = useDocuments(id)
   const [previewDoc, setPreviewDoc] = useState(null)
   const [zipping, setZipping] = useState(false)
+  const [zipError, setZipError] = useState('')
 
   const targetMember = members.find(m => m.id === id)
   const isOwnProfile = targetMember?.user_id === authMember?.user_id
@@ -40,18 +41,33 @@ export default function MemberPage() {
   async function handleDownloadAll() {
     if (!documents.length) return
     setZipping(true)
+    setZipError('')
+    const zip = new JSZip()
+    let added = 0
+    const failures = []
     try {
-      const zip = new JSZip()
       for (const doc of documents) {
-        const url = await getSignedUrl(doc.file_url)
-        const resp = await fetch(url)
-        const blob = await resp.blob()
-        const ext = doc.file_url.split('.').pop()
-        const catName = doc.categories?.name || 'Other'
-        zip.file(`${catName}/${doc.label}.${ext}`, blob)
+        try {
+          const url = await getSignedUrl(doc.file_url)
+          const resp = await fetch(url)
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+          const blob = await resp.blob()
+          const ext = doc.file_url.split('.').pop()
+          const catName = doc.categories?.name || 'Other'
+          zip.file(`${catName}/${doc.label}.${ext}`, blob)
+          added++
+        } catch (err) {
+          failures.push(doc.label)
+          console.warn('Zip: skipping', doc.file_url, err)
+        }
+      }
+      if (added === 0) {
+        setZipError('Could not download any documents.')
+        return
       }
       const content = await zip.generateAsync({ type: 'blob' })
       saveAs(content, `${targetMember?.name || 'documents'}.zip`)
+      if (failures.length) setZipError(`Skipped ${failures.length} file${failures.length === 1 ? '' : 's'} that failed to download.`)
     } finally {
       setZipping(false)
     }
@@ -94,14 +110,17 @@ export default function MemberPage() {
               </button>
             )}
             {documents.length > 0 && (
-              <button
-                onClick={handleDownloadAll}
-                disabled={zipping}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-surface border border-stone-200 text-text-secondary rounded-xl text-sm font-medium hover:bg-surface-hover transition-colors active:scale-[0.98]"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
-                {zipping ? 'Zipping...' : 'Download All'}
-              </button>
+              <div className="flex flex-col items-start gap-1">
+                <button
+                  onClick={handleDownloadAll}
+                  disabled={zipping}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-surface border border-stone-200 text-text-secondary rounded-xl text-sm font-medium hover:bg-surface-hover transition-colors active:scale-[0.98]"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
+                  {zipping ? 'Zipping...' : 'Download All'}
+                </button>
+                {zipError && <p className="text-[11px] text-amber-600">{zipError}</p>}
+              </div>
             )}
           </div>
           {canDeleteMember && (

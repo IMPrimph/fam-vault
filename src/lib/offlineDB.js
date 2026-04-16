@@ -13,8 +13,9 @@ db.version(2).stores({
   blob_meta: 'filePath, docId',
   blob_data: 'filePath',
 }).upgrade(async tx => {
-  const old = await tx.table('blobs').toArray()
-  for (const row of old) {
+  // Stream rows instead of toArray() — users migrating with hundreds of
+  // cached 5MB blobs can otherwise OOM during upgrade.
+  await tx.table('blobs').each(async row => {
     await tx.table('blob_meta').put({
       filePath: row.filePath,
       docId: row.docId,
@@ -28,5 +29,5 @@ db.version(2).stores({
       cipher: row.cipher,
       iv: row.iv,
     })
-  }
+  })
 })

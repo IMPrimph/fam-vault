@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { formatFileSize, formatDate } from '../utils/format'
-import { getThumbPath } from '../lib/thumbnails'
+import { getThumbPath, isThumbMissing, markThumbMissing } from '../lib/thumbnails'
 
 export default function DocumentCard({ doc, onPreview, onDelete, getSignedUrl, canDelete }) {
   const [downloading, setDownloading] = useState(false)
@@ -9,14 +9,21 @@ export default function DocumentCard({ doc, onPreview, onDelete, getSignedUrl, c
   const categoryName = doc.categories?.name || 'Uncategorized'
 
   useEffect(() => {
-    if (isImage && getSignedUrl) {
-      getSignedUrl(getThumbPath(doc.file_url))
-        .then(url => setThumbUrl(url))
-        .catch(() => {
-          getSignedUrl(doc.file_url).then(url => setThumbUrl(url)).catch(() => {})
-        })
+    if (!isImage || !getSignedUrl) return
+    let cancelled = false
+    const thumbPath = getThumbPath(doc.file_url)
+    const fetchFull = () => getSignedUrl(doc.file_url)
+      .then(url => { if (!cancelled) setThumbUrl(url) })
+      .catch(() => {})
+    if (isThumbMissing(thumbPath)) {
+      fetchFull()
+    } else {
+      getSignedUrl(thumbPath)
+        .then(url => { if (!cancelled) setThumbUrl(url) })
+        .catch(() => { if (!cancelled) fetchFull() })
     }
-  }, [doc.file_url])
+    return () => { cancelled = true }
+  }, [doc.file_url, isImage, getSignedUrl])
 
   async function handleDownload() {
     setDownloading(true)
@@ -26,6 +33,8 @@ export default function DocumentCard({ doc, onPreview, onDelete, getSignedUrl, c
       a.href = url
       a.download = doc.label + '.' + doc.file_url.split('.').pop()
       a.click()
+    } catch (err) {
+      console.warn('Download failed', err)
     } finally {
       setDownloading(false)
     }
@@ -45,7 +54,8 @@ export default function DocumentCard({ doc, onPreview, onDelete, getSignedUrl, c
             className="w-full h-full object-cover"
             loading="lazy"
             onError={() => {
-              if (getSignedUrl && thumbUrl) {
+              markThumbMissing(getThumbPath(doc.file_url))
+              if (getSignedUrl) {
                 getSignedUrl(doc.file_url).then(url => setThumbUrl(url)).catch(() => setThumbUrl(null))
               }
             }}

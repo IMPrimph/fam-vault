@@ -1,16 +1,27 @@
 import { supabase } from './supabase'
 import { getOfflineBlobUrl } from './offlineSync'
+import { markThumbMissing } from './thumbnails'
 
 const TTL_MS = 50 * 60 * 1000
 const cache = new Map()
 const inflight = new Map()
-const blobUrls = new Set()
+// filePath → blob: URL. One per path; re-used across renders until cleared.
+const blobUrls = new Map()
 
 export async function getCachedSignedUrl(filePath) {
+  const existingBlob = blobUrls.get(filePath)
+  if (existingBlob) return existingBlob
+
   try {
     const offlineUrl = await getOfflineBlobUrl(filePath)
     if (offlineUrl) {
-      blobUrls.add(offlineUrl)
+      // Another caller may have raced us. Keep the first URL and revoke ours.
+      const winner = blobUrls.get(filePath)
+      if (winner) {
+        URL.revokeObjectURL(offlineUrl)
+        return winner
+      }
+      blobUrls.set(filePath, offlineUrl)
       return offlineUrl
     }
   } catch {
@@ -34,6 +45,7 @@ export async function getCachedSignedUrl(filePath) {
     })
     .catch(err => {
       inflight.delete(filePath)
+      if (filePath.endsWith('_thumb.jpg')) markThumbMissing(filePath)
       throw err
     })
 
@@ -41,9 +53,18 @@ export async function getCachedSignedUrl(filePath) {
   return promise
 }
 
+export function invalidateCachedUrl(filePath) {
+  cache.delete(filePath)
+  const blob = blobUrls.get(filePath)
+  if (blob) {
+    URL.revokeObjectURL(blob)
+    blobUrls.delete(filePath)
+  }
+}
+
 export function clearSignedUrlCache() {
   cache.clear()
   inflight.clear()
-  for (const url of blobUrls) URL.revokeObjectURL(url)
+  for (const url of blobUrls.values()) URL.revokeObjectURL(url)
   blobUrls.clear()
 }

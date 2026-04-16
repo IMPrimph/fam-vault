@@ -1,6 +1,6 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef } from 'react'
 import { useCategories } from '../hooks/useCategories'
-import { supabase } from '../lib/supabase'
+import { useStorageUsage } from '../hooks/useStorageUsage'
 import { formatFileSize } from '../utils/format'
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024
@@ -8,6 +8,8 @@ const STORAGE_BLOCK_BYTES = 950 * 1024 * 1024
 
 export default function UploadForm({ familyId, memberId, onUpload }) {
   const { categories, addCategory } = useCategories(familyId)
+  const { bytes: usedBytes } = useStorageUsage(familyId)
+  const storageBlocked = usedBytes >= STORAGE_BLOCK_BYTES
   const [categoryId, setCategoryId] = useState('')
   const [newCategory, setNewCategory] = useState('')
   const [label, setLabel] = useState('')
@@ -15,21 +17,8 @@ export default function UploadForm({ familyId, memberId, onUpload }) {
   const [file, setFile] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [storageBlocked, setStorageBlocked] = useState(false)
   const [dragging, setDragging] = useState(false)
   const fileRef = useRef()
-
-  useEffect(() => {
-    if (!familyId) return
-    supabase
-      .from('documents')
-      .select('file_size, members!inner(family_id)')
-      .eq('members.family_id', familyId)
-      .then(({ data }) => {
-        const total = (data || []).reduce((sum, d) => sum + (d.file_size || 0), 0)
-        if (total >= STORAGE_BLOCK_BYTES) setStorageBlocked(true)
-      })
-  }, [familyId])
 
   function validateAndSetFile(f) {
     if (!f) return

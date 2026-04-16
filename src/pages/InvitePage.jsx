@@ -43,7 +43,7 @@ export default function InvitePage() {
     setError('')
     try {
       await acceptInvite(token)
-      await fetchMember()
+      await fetchMember(session?.user?.id)
       navigate('/dashboard')
     } catch (err) {
       setError(err.message)
@@ -99,8 +99,12 @@ export default function InvitePage() {
         <div className="bg-surface-card rounded-2xl shadow-xl shadow-stone-200/50 border border-stone-200/60 p-7">
           {!session ? (
             <div>
-              <p className="text-sm text-text-muted mb-5 text-center">Sign in with your email to accept this invite.</p>
-              <LoginForm />
+              <p className="text-sm text-text-muted mb-5 text-center">
+                {invite.email
+                  ? `Sign in with ${invite.email} to accept this invite.`
+                  : 'Sign in with your email to accept this invite.'}
+              </p>
+              <LoginForm prefillEmail={invite.email || ''} lockEmail={!!invite.email} />
             </div>
           ) : member ? (
             <div className="text-center py-2">
