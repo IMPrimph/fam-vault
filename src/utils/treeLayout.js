@@ -93,7 +93,9 @@ export function buildTreeLayout(members) {
     y += NODE_HEIGHT + V_GAP
   }
 
-  // Parent-child edges
+  // Parent-child edges. If the recorded parent has a spouse, draw a second
+  // inferred edge from that spouse to the child so co-parents read as
+  // co-parents (faded, to distinguish from the explicit parent link).
   for (const m of members) {
     if (m.parent_member_id && byId[m.parent_member_id]) {
       edges.push({
@@ -103,6 +105,16 @@ export function buildTreeLayout(members) {
         type: 'smoothstep',
         style: { stroke: '#6b7280' },
       })
+      const parent = byId[m.parent_member_id]
+      if (parent.spouse_member_id && byId[parent.spouse_member_id]) {
+        edges.push({
+          id: `coparent-${parent.spouse_member_id}-${m.id}`,
+          source: parent.spouse_member_id,
+          target: m.id,
+          type: 'smoothstep',
+          style: { stroke: '#9ca3af', strokeDasharray: '4,3', opacity: 0.6 },
+        })
+      }
     }
   }
 

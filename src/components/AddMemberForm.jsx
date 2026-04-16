@@ -90,10 +90,13 @@ export default function AddMemberForm({ members, onSubmit, onClose }) {
                 className="w-full px-3 py-2.5 bg-surface border border-stone-300 rounded-xl text-sm text-text-primary focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 outline-none transition-all"
               >
                 <option value="">None</option>
-                {members.filter(m => !m.spouse_member_id).map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                {members.map(m => <option key={m.id} value={m.id}>{m.name}{m.spouse_member_id ? ' (will replace current link)' : ''}</option>)}
               </select>
             </div>
           </div>
+          <p className="text-[11px] text-text-muted -mt-3">
+            Pick one parent. If that parent has a spouse recorded, we'll draw both as co-parents automatically.
+          </p>
 
           {error && <p className="text-red-600 text-sm bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
 

@@ -40,6 +40,17 @@ export function useMembers(familyId) {
       if (error) throw error
 
       if (spouseMemberId) {
+        // Break any existing partnership on the chosen spouse's side so we
+        // don't end up with asymmetric pointers (X still thinks Y is their
+        // spouse while Y now points at the new member).
+        const chosenSpouse = members.find(m => m.id === spouseMemberId)
+        if (chosenSpouse?.spouse_member_id && chosenSpouse.spouse_member_id !== data.id) {
+          await supabase
+            .from('members')
+            .update({ spouse_member_id: null })
+            .eq('id', chosenSpouse.spouse_member_id)
+        }
+
         const { error: spouseError } = await supabase
           .from('members')
           .update({ spouse_member_id: data.id })
@@ -60,10 +71,39 @@ export function useMembers(familyId) {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, updates }) => {
-      const { error } = await supabase
-        .from('members')
-        .update(updates)
-        .eq('id', id)
+      // If spouse_member_id is being changed, keep both sides in sync and
+      // unlink any stale partners so we never end up with asymmetric or
+      // triangular spouse pointers.
+      if (Object.prototype.hasOwnProperty.call(updates, 'spouse_member_id')) {
+        const newSpouseId = updates.spouse_member_id || null
+        const self = members.find(m => m.id === id)
+        const prevSpouseId = self?.spouse_member_id || null
+
+        // 1. Clear the previous spouse of `self` (if any and different).
+        if (prevSpouseId && prevSpouseId !== newSpouseId) {
+          await supabase.from('members').update({ spouse_member_id: null }).eq('id', prevSpouseId)
+        }
+        // 2. Clear any OTHER member currently pointing at the new spouse
+        //    (defensive — repairs stale state from older data).
+        if (newSpouseId) {
+          const currentPartner = members.find(m => m.spouse_member_id === newSpouseId && m.id !== id)
+          if (currentPartner) {
+            await supabase.from('members').update({ spouse_member_id: null }).eq('id', currentPartner.id)
+          }
+          // 3. Also clear the new spouse's own previous partner if it isn't `self`.
+          const newSpouse = members.find(m => m.id === newSpouseId)
+          if (newSpouse?.spouse_member_id && newSpouse.spouse_member_id !== id) {
+            await supabase
+              .from('members')
+              .update({ spouse_member_id: null })
+              .eq('id', newSpouse.spouse_member_id)
+          }
+          // 4. Back-link the new spouse to `self`.
+          await supabase.from('members').update({ spouse_member_id: id }).eq('id', newSpouseId)
+        }
+      }
+
+      const { error } = await supabase.from('members').update(updates).eq('id', id)
       if (error) throw error
     },
     onSuccess: () => {

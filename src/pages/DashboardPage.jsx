@@ -93,7 +93,7 @@ export default function DashboardPage() {
       {recentDocs.length > 0 && (
         <div>
           <h2 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">Recently Viewed</h2>
-          <div className="flex gap-2.5 overflow-x-auto pb-1 scrollbar-hide -mx-1 px-1">
+          <div className="flex gap-2.5 overflow-x-auto py-1 scrollbar-hide -mx-1 px-1">
             {recentDocs.map(doc => (
               <RecentCard key={doc.id} doc={doc} getSignedUrl={getSignedUrl} onPreview={() => { trackView(doc.id); setPreviewDoc(doc) }} />
             ))}
@@ -119,7 +119,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Member filter row */}
-      <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide -mx-1 px-1">
+      <div className="flex gap-2 overflow-x-auto py-1 scrollbar-hide -mx-1 px-1">
         <button
           onClick={() => setSelectedMember(null)}
           className={`shrink-0 flex flex-col items-center gap-1 px-1 ${!selectedMember ? '' : 'opacity-50'}`}
@@ -148,7 +148,7 @@ export default function DashboardPage() {
                   : getInitials(m.name)
                 }
               </div>
-              <span className="text-[11px] text-text-muted font-medium truncate max-w-14">{m.name.split(' ')[0]}</span>
+              <span className="text-[11px] text-text-muted font-medium text-center leading-tight break-words max-w-[72px]">{m.name}</span>
             </button>
           )
         })}
@@ -156,7 +156,7 @@ export default function DashboardPage() {
 
       {/* Category filter chips */}
       {categories.length > 0 && (
-        <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide -mx-1 px-1">
+        <div className="flex gap-1.5 overflow-x-auto py-1 scrollbar-hide -mx-1 px-1">
           <button
             onClick={() => setShowStarred(!showStarred)}
             className={`shrink-0 inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
