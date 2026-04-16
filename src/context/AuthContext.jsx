@@ -2,6 +2,8 @@ import { createContext, useContext, useEffect, useState, useCallback } from 'rea
 import { supabase } from '../lib/supabase'
 import { clearSignedUrlCache } from '../lib/signedUrlCache'
 import { queryClient } from '../lib/queryClient'
+import { syncAllDocs, wipeOfflineData, initLastSynced } from '../lib/offlineSync'
+import { isOfflineEnabled } from '../lib/offlinePrefs'
 
 const AuthContext = createContext(null)
 
@@ -24,6 +26,10 @@ export function AuthProvider({ children }) {
     }
     setMember(data)
     setLoading(false)
+    if (data?.family_id) {
+      initLastSynced()
+      if (isOfflineEnabled()) syncAllDocs(data.family_id)
+    }
   }, [])
 
   useEffect(() => {
@@ -45,6 +51,13 @@ export function AuthProvider({ children }) {
     return () => subscription.unsubscribe()
   }, [fetchMember])
 
+  useEffect(() => {
+    if (!member?.family_id) return
+    const onOnline = () => { if (isOfflineEnabled()) syncAllDocs(member.family_id) }
+    window.addEventListener('online', onOnline)
+    return () => window.removeEventListener('online', onOnline)
+  }, [member?.family_id])
+
   async function signInWithEmail(email, redirectPath) {
     const redirectTo = window.location.origin + (redirectPath || window.location.pathname === '/' ? '/dashboard' : window.location.pathname)
     const { error } = await supabase.auth.signInWithOtp({
@@ -60,6 +73,7 @@ export function AuthProvider({ children }) {
     setMember(null)
     clearSignedUrlCache()
     queryClient.clear()
+    await wipeOfflineData()
   }
 
   const isAdmin = member?.role === 'admin'

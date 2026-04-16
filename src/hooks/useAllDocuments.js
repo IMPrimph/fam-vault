@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { getCachedSignedUrl } from '../lib/signedUrlCache'
 import { getThumbPath } from '../lib/thumbnails'
+import { removeFromOfflineCache } from '../lib/offlineSync'
 
 async function fetchAllDocuments(familyId) {
   const { data, error } = await supabase
@@ -24,11 +25,16 @@ export function useAllDocuments(familyId) {
 
   const deleteMutation = useMutation({
     mutationFn: async (doc) => {
-      await supabase.storage.from('documents').remove([doc.file_url]).catch(() => {})
-      await supabase.storage.from('documents').remove([getThumbPath(doc.file_url)]).catch(() => {})
+      const origResult = await supabase.storage.from('documents').remove([doc.file_url])
+      if (origResult.error) console.warn('Storage delete failed (original)', doc.file_url, origResult.error)
+
+      const thumbResult = await supabase.storage.from('documents').remove([getThumbPath(doc.file_url)])
+      if (thumbResult.error) console.warn('Storage delete failed (thumb)', getThumbPath(doc.file_url), thumbResult.error)
 
       const { error } = await supabase.from('documents').delete().eq('id', doc.id)
       if (error) throw error
+
+      await removeFromOfflineCache(doc.file_url).catch(e => console.warn('Offline cache remove failed', e))
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['allDocuments'] })

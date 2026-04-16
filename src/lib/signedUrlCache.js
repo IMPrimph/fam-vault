@@ -1,10 +1,22 @@
 import { supabase } from './supabase'
+import { getOfflineBlobUrl } from './offlineSync'
 
 const TTL_MS = 50 * 60 * 1000
 const cache = new Map()
 const inflight = new Map()
+const blobUrls = new Set()
 
 export async function getCachedSignedUrl(filePath) {
+  try {
+    const offlineUrl = await getOfflineBlobUrl(filePath)
+    if (offlineUrl) {
+      blobUrls.add(offlineUrl)
+      return offlineUrl
+    }
+  } catch {
+    // Decryption or IDB error — fall back to network
+  }
+
   const cached = cache.get(filePath)
   if (cached && Date.now() < cached.expiresAt) return cached.url
 
@@ -32,4 +44,6 @@ export async function getCachedSignedUrl(filePath) {
 export function clearSignedUrlCache() {
   cache.clear()
   inflight.clear()
+  for (const url of blobUrls) URL.revokeObjectURL(url)
+  blobUrls.clear()
 }
