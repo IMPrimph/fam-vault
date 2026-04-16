@@ -14,7 +14,7 @@ export default function DocumentGrid({ documents, onPreview, onDelete, getSigned
 
   return (
     <div className="space-y-6">
-      {Object.entries(grouped).map(([catName, docs]) => (
+      {Object.entries(grouped).filter(([, docs]) => docs.length > 0).map(([catName, docs]) => (
         <div key={catName}>
           <h3 className="text-xs font-semibold text-text-secondary mb-3 uppercase tracking-wider">{catName}</h3>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -25,7 +25,7 @@ export default function DocumentGrid({ documents, onPreview, onDelete, getSigned
                 onPreview={onPreview}
                 onDelete={onDelete}
                 getSignedUrl={getSignedUrl}
-                canDelete={canDelete}
+                canDelete={typeof canDelete === 'function' ? canDelete(doc) : canDelete}
               />
             ))}
           </div>

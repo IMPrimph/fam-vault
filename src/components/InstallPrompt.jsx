@@ -10,14 +10,10 @@ function isRunningAsApp() {
 export default function InstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState(null)
   const [dismissed, setDismissed] = useState(false)
-  const [isApp, setIsApp] = useState(false)
+  const [isApp, setIsApp] = useState(isRunningAsApp)
 
   useEffect(() => {
-    // If already running as installed app, never show
-    if (isRunningAsApp()) {
-      setIsApp(true)
-      return
-    }
+    if (isApp) return
 
     // Also listen for display mode changes (in case user installs while using)
     const mq = window.matchMedia('(display-mode: standalone)')

@@ -1,5 +1,7 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
+import { clearSignedUrlCache } from '../lib/signedUrlCache'
+import { queryClient } from '../lib/queryClient'
 
 const AuthContext = createContext(null)
 
@@ -9,16 +11,31 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState(null)
 
+  const fetchMember = useCallback(async (userId) => {
+    if (!userId) { setLoading(false); return }
+    setFetchError(null)
+    const { data, error } = await supabase
+      .from('members')
+      .select('*, families(name)')
+      .eq('user_id', userId)
+      .single()
+    if (error && error.code !== 'PGRST116') {
+      setFetchError(error.message)
+    }
+    setMember(data)
+    setLoading(false)
+  }, [])
+
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
-      if (session) fetchMember(session.user.id)
+    supabase.auth.getSession().then(({ data: { session: s } }) => {
+      setSession(s)
+      if (s) fetchMember(s.user.id)
       else setLoading(false)
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session)
-      if (session) fetchMember(session.user.id)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
+      setSession(s)
+      if (s) fetchMember(s.user.id)
       else {
         setMember(null)
         setLoading(false)
@@ -26,28 +43,9 @@ export function AuthProvider({ children }) {
     })
 
     return () => subscription.unsubscribe()
-  }, [])
-
-  async function fetchMember(userId) {
-    const uid = userId || session?.user?.id
-    if (!uid) { setLoading(false); return }
-    setFetchError(null)
-    const { data, error } = await supabase
-      .from('members')
-      .select('*, families(name)')
-      .eq('user_id', uid)
-      .single()
-    if (error && error.code !== 'PGRST116') {
-      // PGRST116 = "no rows" (user genuinely has no family) — that's fine
-      // Any other error is a real failure
-      setFetchError(error.message)
-    }
-    setMember(data)
-    setLoading(false)
-  }
+  }, [fetchMember])
 
   async function signInWithEmail(email, redirectPath) {
-    // Preserve the current path (e.g., /invite/abc123) so user comes back to the right page
     const redirectTo = window.location.origin + (redirectPath || window.location.pathname === '/' ? '/dashboard' : window.location.pathname)
     const { error } = await supabase.auth.signInWithOtp({
       email,
@@ -60,6 +58,8 @@ export function AuthProvider({ children }) {
     await supabase.auth.signOut()
     setSession(null)
     setMember(null)
+    clearSignedUrlCache()
+    queryClient.clear()
   }
 
   const isAdmin = member?.role === 'admin'
@@ -71,6 +71,7 @@ export function AuthProvider({ children }) {
   )
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth() {
   const ctx = useContext(AuthContext)
   if (!ctx) throw new Error('useAuth must be used within AuthProvider')

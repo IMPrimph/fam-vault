@@ -20,11 +20,16 @@ export default function UploadForm({ familyId, memberId, onUpload }) {
   const fileRef = useRef()
 
   useEffect(() => {
-    supabase.from('documents').select('file_size').then(({ data }) => {
-      const total = (data || []).reduce((sum, d) => sum + (d.file_size || 0), 0)
-      if (total >= STORAGE_BLOCK_BYTES) setStorageBlocked(true)
-    })
-  }, [])
+    if (!familyId) return
+    supabase
+      .from('documents')
+      .select('file_size, members!inner(family_id)')
+      .eq('members.family_id', familyId)
+      .then(({ data }) => {
+        const total = (data || []).reduce((sum, d) => sum + (d.file_size || 0), 0)
+        if (total >= STORAGE_BLOCK_BYTES) setStorageBlocked(true)
+      })
+  }, [familyId])
 
   function validateAndSetFile(f) {
     if (!f) return

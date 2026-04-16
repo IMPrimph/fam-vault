@@ -1,52 +1,65 @@
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
-import { useState, useEffect } from 'react'
+
+async function fetchInvites(familyId) {
+  const { data, error } = await supabase
+    .from('invites')
+    .select('*, members(name, relationship)')
+    .eq('family_id', familyId)
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return data || []
+}
 
 export function useInvites(familyId) {
-  const [invites, setInvites] = useState([])
-  const [loading, setLoading] = useState(true)
+  const queryClient = useQueryClient()
 
-  useEffect(() => {
-    if (!familyId) return
-    fetchInvites()
-  }, [familyId])
+  const { data: invites = [], isLoading: loading } = useQuery({
+    queryKey: ['invites', familyId],
+    queryFn: () => fetchInvites(familyId),
+    enabled: !!familyId,
+  })
 
-  async function fetchInvites() {
-    setLoading(true)
-    const { data, error } = await supabase
-      .from('invites')
-      .select('*, members(name, relationship)')
-      .eq('family_id', familyId)
-      .order('created_at', { ascending: false })
-    if (!error) setInvites(data || [])
-    setLoading(false)
+  const createMutation = useMutation({
+    mutationFn: async (memberId) => {
+      const token = crypto.randomUUID().replace(/-/g, '')
+      const { data, error } = await supabase
+        .from('invites')
+        .insert({
+          family_id: familyId,
+          member_id: memberId,
+          token,
+        })
+        .select('*, members(name, relationship)')
+        .single()
+      if (error) throw error
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['invites', familyId] })
+    },
+  })
+
+  const revokeMutation = useMutation({
+    mutationFn: async (id) => {
+      const { error } = await supabase
+        .from('invites')
+        .update({ status: 'revoked' })
+        .eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['invites', familyId] })
+    },
+  })
+
+  return {
+    invites,
+    loading,
+    createInvite: createMutation.mutateAsync,
+    revokeInvite: revokeMutation.mutateAsync,
+    refetch: () => queryClient.invalidateQueries({ queryKey: ['invites', familyId] }),
   }
-
-  async function createInvite(memberId) {
-    const token = crypto.randomUUID().replace(/-/g, '')
-    const { data, error } = await supabase
-      .from('invites')
-      .insert({
-        family_id: familyId,
-        member_id: memberId,
-        token,
-      })
-      .select('*, members(name, relationship)')
-      .single()
-    if (error) throw error
-    await fetchInvites()
-    return data
-  }
-
-  async function revokeInvite(id) {
-    const { error } = await supabase
-      .from('invites')
-      .update({ status: 'revoked' })
-      .eq('id', id)
-    if (error) throw error
-    await fetchInvites()
-  }
-
-  return { invites, loading, createInvite, revokeInvite, refetch: fetchInvites }
 }
 
 export async function lookupInvite(token) {

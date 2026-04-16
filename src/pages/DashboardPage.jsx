@@ -3,8 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useMembers } from '../hooks/useMembers'
 import { useAllDocuments } from '../hooks/useAllDocuments'
+import { useRecentlyViewed } from '../hooks/useRecentlyViewed'
+import { useStarred } from '../hooks/useStarred'
 import { getAvatarGradient, getInitials } from '../utils/avatar'
-import { formatFileSize, formatDate } from '../utils/format'
+import { getThumbPath } from '../lib/thumbnails'
 import DocumentPreview from '../components/DocumentPreview'
 import StorageWarning from '../components/StorageWarning'
 
@@ -13,11 +15,19 @@ export default function DashboardPage() {
   const { member, isAdmin } = useAuth()
   const { members } = useMembers(member?.family_id)
   const { documents, loading, getSignedUrl, deleteDocument } = useAllDocuments(member?.family_id)
+  const { recentIds, trackView } = useRecentlyViewed()
+  const { toggleStar, isStarred } = useStarred(member?.user_id)
 
   const [selectedMember, setSelectedMember] = useState(null)
   const [selectedCategory, setSelectedCategory] = useState(null)
+  const [showStarred, setShowStarred] = useState(false)
   const [search, setSearch] = useState('')
   const [previewDoc, setPreviewDoc] = useState(null)
+
+  const recentDocs = useMemo(() => {
+    if (!documents.length) return []
+    return recentIds.map(id => documents.find(d => d.id === id)).filter(Boolean).slice(0, 8)
+  }, [recentIds, documents])
 
   // Derive unique categories from documents
   const categories = useMemo(() => {
@@ -29,9 +39,11 @@ export default function DashboardPage() {
     return [...map.entries()].map(([name, id]) => ({ name, id }))
   }, [documents])
 
-  // Filter documents
   const filtered = useMemo(() => {
     let result = documents
+    if (showStarred) {
+      result = result.filter(d => isStarred(d.id))
+    }
     if (selectedMember) {
       result = result.filter(d => d.members?.id === selectedMember)
     }
@@ -48,7 +60,7 @@ export default function DashboardPage() {
       )
     }
     return result
-  }, [documents, selectedMember, selectedCategory, search])
+  }, [documents, selectedMember, selectedCategory, showStarred, isStarred, search])
 
   async function handleDownload(doc) {
     const url = await getSignedUrl(doc.file_url)
@@ -72,6 +84,17 @@ export default function DashboardPage() {
   return (
     <div className="p-4 md:p-6 lg:p-8 max-w-6xl mx-auto space-y-5">
       <StorageWarning familyId={member?.family_id} />
+
+      {recentDocs.length > 0 && (
+        <div>
+          <h2 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">Recently Viewed</h2>
+          <div className="flex gap-2.5 overflow-x-auto pb-1 scrollbar-hide -mx-1 px-1">
+            {recentDocs.map(doc => (
+              <RecentCard key={doc.id} doc={doc} getSignedUrl={getSignedUrl} onPreview={() => { trackView(doc.id); setPreviewDoc(doc) }} />
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Search bar */}
       <div className="relative">
@@ -130,6 +153,15 @@ export default function DashboardPage() {
       {categories.length > 0 && (
         <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide -mx-1 px-1">
           <button
+            onClick={() => setShowStarred(!showStarred)}
+            className={`shrink-0 inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              showStarred ? 'bg-amber-100 text-amber-700 ring-1 ring-amber-200' : 'bg-stone-100 text-text-secondary hover:bg-stone-200'
+            }`}
+          >
+            <svg className="w-3 h-3" fill={showStarred ? 'currentColor' : 'none'} viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z" /></svg>
+            Starred
+          </button>
+          <button
             onClick={() => setSelectedCategory(null)}
             className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
               !selectedCategory ? 'bg-primary-100 text-primary-700 ring-1 ring-primary-200' : 'bg-stone-100 text-text-secondary hover:bg-stone-200'
@@ -155,11 +187,11 @@ export default function DashboardPage() {
       <div className="flex items-center justify-between">
         <p className="text-xs text-text-muted">
           {filtered.length} document{filtered.length !== 1 ? 's' : ''}
-          {(selectedMember || selectedCategory || search) ? ' (filtered)' : ''}
+          {(selectedMember || selectedCategory || showStarred || search) ? ' (filtered)' : ''}
         </p>
-        {(selectedMember || selectedCategory || search) && (
+        {(selectedMember || selectedCategory || showStarred || search) && (
           <button
-            onClick={() => { setSelectedMember(null); setSelectedCategory(null); setSearch('') }}
+            onClick={() => { setSelectedMember(null); setSelectedCategory(null); setShowStarred(false); setSearch('') }}
             className="text-xs text-primary-600 hover:text-primary-700 font-medium"
           >
             Clear filters
@@ -200,9 +232,11 @@ export default function DashboardPage() {
               key={doc.id}
               doc={doc}
               getSignedUrl={getSignedUrl}
-              onPreview={() => setPreviewDoc(doc)}
+              onPreview={() => { trackView(doc.id); setPreviewDoc(doc) }}
               onDownload={() => handleDownload(doc)}
               onDelete={isAdmin ? () => handleDelete(doc) : null}
+              starred={isStarred(doc.id)}
+              onToggleStar={() => toggleStar(doc.id)}
             />
           ))}
         </div>
@@ -222,7 +256,7 @@ export default function DashboardPage() {
   )
 }
 
-function DocCard({ doc, getSignedUrl, onPreview, onDownload, onDelete }) {
+function DocCard({ doc, getSignedUrl, onPreview, onDownload, onDelete, starred, onToggleStar }) {
   const [downloading, setDownloading] = useState(false)
   const [thumbUrl, setThumbUrl] = useState(null)
   const isImage = doc.file_type?.startsWith('image/')
@@ -230,10 +264,13 @@ function DocCard({ doc, getSignedUrl, onPreview, onDownload, onDelete }) {
   const category = doc.categories?.name || ''
   const gradient = getAvatarGradient(memberName)
 
-  // Load thumbnail for images
   useEffect(() => {
     if (isImage && getSignedUrl) {
-      getSignedUrl(doc.file_url).then(url => setThumbUrl(url)).catch(() => {})
+      getSignedUrl(getThumbPath(doc.file_url))
+        .then(url => setThumbUrl(url))
+        .catch(() => {
+          getSignedUrl(doc.file_url).then(url => setThumbUrl(url)).catch(() => {})
+        })
     }
   }, [doc.file_url])
 
@@ -258,7 +295,17 @@ function DocCard({ doc, getSignedUrl, onPreview, onDownload, onDelete }) {
       {/* Tap to preview — show actual thumbnail for images */}
       <button onClick={onPreview} className="w-full h-28 bg-gradient-to-br from-stone-50 to-stone-100 flex items-center justify-center relative overflow-hidden">
         {isImage && thumbUrl ? (
-          <img src={thumbUrl} alt={doc.label} className="w-full h-full object-cover" loading="lazy" />
+          <img
+            src={thumbUrl}
+            alt={doc.label}
+            className="w-full h-full object-cover"
+            loading="lazy"
+            onError={() => {
+              if (getSignedUrl && thumbUrl) {
+                getSignedUrl(doc.file_url).then(url => setThumbUrl(url)).catch(() => setThumbUrl(null))
+              }
+            }}
+          />
         ) : (
           <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${isImage ? 'bg-sky-100 text-sky-600' : 'bg-amber-100 text-amber-600'}`}>
             {isImage ? (
@@ -275,7 +322,15 @@ function DocCard({ doc, getSignedUrl, onPreview, onDownload, onDelete }) {
 
       {/* Info */}
       <div className="p-3">
-        <p className="font-medium text-sm text-text-primary truncate leading-tight">{doc.label}</p>
+        <div className="flex items-start justify-between gap-1">
+          <p className="font-medium text-sm text-text-primary truncate leading-tight">{doc.label}</p>
+          {onToggleStar && (
+            <button onClick={(e) => { e.stopPropagation(); onToggleStar() }} className="shrink-0 p-0.5 -mt-0.5 -mr-0.5">
+              <svg className={`w-3.5 h-3.5 transition-colors ${starred ? 'text-amber-400 fill-amber-400' : 'text-stone-300 hover:text-amber-300'}`} fill={starred ? 'currentColor' : 'none'} viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z" /></svg>
+            </button>
+          )}
+        </div>
+        {doc.notes && <p className="text-[10px] text-text-muted truncate mt-0.5">{doc.notes}</p>}
         <div className="flex items-center gap-1.5 mt-1.5">
           <div className={`w-4 h-4 rounded bg-gradient-to-br ${gradient} flex items-center justify-center text-white shrink-0`}>
             <span className="text-[7px] font-bold">{getInitials(memberName).charAt(0)}</span>
@@ -303,6 +358,50 @@ function DocCard({ doc, getSignedUrl, onPreview, onDownload, onDelete }) {
         </div>
       </div>
     </div>
+  )
+}
+
+function RecentCard({ doc, getSignedUrl, onPreview }) {
+  const [thumbUrl, setThumbUrl] = useState(null)
+  const isImage = doc.file_type?.startsWith('image/')
+
+  useEffect(() => {
+    if (isImage && getSignedUrl) {
+      getSignedUrl(getThumbPath(doc.file_url))
+        .then(url => setThumbUrl(url))
+        .catch(() => {
+          getSignedUrl(doc.file_url).then(url => setThumbUrl(url)).catch(() => {})
+        })
+    }
+  }, [doc.file_url])
+
+  return (
+    <button
+      onClick={onPreview}
+      className="shrink-0 w-24 bg-surface-card rounded-xl border border-stone-200/60 overflow-hidden hover:shadow-md transition-all"
+    >
+      <div className="h-16 bg-gradient-to-br from-stone-50 to-stone-100 flex items-center justify-center overflow-hidden">
+        {isImage && thumbUrl ? (
+          <img
+            src={thumbUrl}
+            alt={doc.label}
+            className="w-full h-full object-cover"
+            onError={() => {
+              if (getSignedUrl) getSignedUrl(doc.file_url).then(url => setThumbUrl(url)).catch(() => setThumbUrl(null))
+            }}
+          />
+        ) : (
+          <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${isImage ? 'bg-sky-100 text-sky-600' : 'bg-amber-100 text-amber-600'}`}>
+            {isImage ? (
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0 0 22.5 18.75V5.25A2.25 2.25 0 0 0 20.25 3H3.75A2.25 2.25 0 0 0 1.5 5.25v13.5A2.25 2.25 0 0 0 3.75 21Z" /></svg>
+            ) : (
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg>
+            )}
+          </div>
+        )}
+      </div>
+      <p className="text-[10px] font-medium text-text-primary truncate px-2 py-1.5">{doc.label}</p>
+    </button>
   )
 }
 

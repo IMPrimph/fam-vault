@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { formatFileSize, formatDate } from '../utils/format'
+import { getThumbPath } from '../lib/thumbnails'
 
 export default function DocumentCard({ doc, onPreview, onDelete, getSignedUrl, canDelete }) {
   const [downloading, setDownloading] = useState(false)
@@ -7,17 +8,20 @@ export default function DocumentCard({ doc, onPreview, onDelete, getSignedUrl, c
   const isImage = doc.file_type?.startsWith('image/')
   const categoryName = doc.categories?.name || 'Uncategorized'
 
-  // Load thumbnail for image documents
   useEffect(() => {
     if (isImage && getSignedUrl) {
-      getSignedUrl(doc.file_url).then(url => setThumbUrl(url)).catch(() => {})
+      getSignedUrl(getThumbPath(doc.file_url))
+        .then(url => setThumbUrl(url))
+        .catch(() => {
+          getSignedUrl(doc.file_url).then(url => setThumbUrl(url)).catch(() => {})
+        })
     }
   }, [doc.file_url])
 
   async function handleDownload() {
     setDownloading(true)
     try {
-      const url = thumbUrl || await getSignedUrl(doc.file_url)
+      const url = await getSignedUrl(doc.file_url)
       const a = document.createElement('a')
       a.href = url
       a.download = doc.label + '.' + doc.file_url.split('.').pop()
@@ -35,7 +39,17 @@ export default function DocumentCard({ doc, onPreview, onDelete, getSignedUrl, c
         className="w-full h-28 bg-gradient-to-br from-stone-50 to-stone-100 flex items-center justify-center relative overflow-hidden"
       >
         {isImage && thumbUrl ? (
-          <img src={thumbUrl} alt={doc.label} className="w-full h-full object-cover" loading="lazy" />
+          <img
+            src={thumbUrl}
+            alt={doc.label}
+            className="w-full h-full object-cover"
+            loading="lazy"
+            onError={() => {
+              if (getSignedUrl && thumbUrl) {
+                getSignedUrl(doc.file_url).then(url => setThumbUrl(url)).catch(() => setThumbUrl(null))
+              }
+            }}
+          />
         ) : (
           <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isImage ? 'bg-sky-100 text-sky-600' : 'bg-amber-100 text-amber-600'}`}>
             {isImage ? (
@@ -55,6 +69,7 @@ export default function DocumentCard({ doc, onPreview, onDelete, getSignedUrl, c
       {/* Info */}
       <div className="p-3.5">
         <p className="font-medium text-sm text-text-primary truncate">{doc.label}</p>
+        {doc.notes && <p className="text-[10px] text-text-muted truncate mt-0.5">{doc.notes}</p>}
         <div className="flex items-center gap-1.5 mt-1.5">
           <span className="text-[11px] font-medium bg-stone-100 text-text-secondary px-2 py-0.5 rounded-md">{categoryName}</span>
           <span className="text-[11px] text-text-muted">{formatFileSize(doc.file_size)}</span>

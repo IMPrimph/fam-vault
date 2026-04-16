@@ -27,13 +27,9 @@ export default defineConfig({
             handler: 'NetworkOnly',
           },
           {
-            // Supabase Storage signed URLs — network first, short cache for thumbnails
+            // Supabase Storage — never cache sensitive family documents in browser
             urlPattern: /^https:\/\/.*\.supabase\.co\/storage\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'supabase-storage',
-              expiration: { maxEntries: 50, maxAgeSeconds: 3600 },
-            },
+            handler: 'NetworkOnly',
           },
         ],
       },

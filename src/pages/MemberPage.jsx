@@ -21,7 +21,7 @@ export default function MemberPage() {
   const targetMember = members.find(m => m.id === id)
   const isOwnProfile = targetMember?.user_id === authMember?.user_id
   const canUpload = isAdmin || isOwnProfile
-  const canDelete = isAdmin || isOwnProfile
+  const canDeleteDoc = (doc) => isAdmin || doc.uploaded_by === authMember?.user_id
   const canDeleteMember = isAdmin && targetMember?.id !== authMember?.id
   const gradient = targetMember ? getAvatarGradient(targetMember.name) : 'from-gray-400 to-gray-500'
   const initials = targetMember ? getInitials(targetMember.name) : '?'
@@ -65,11 +65,11 @@ export default function MemberPage() {
 
   return (
     <div className="p-4 md:p-6 lg:p-8 max-w-5xl mx-auto">
-      {/* Back */}
-      <button onClick={() => navigate(-1)} className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-primary-600 transition-colors mb-5">
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" /></svg>
-        Back
-      </button>
+      <nav className="flex items-center gap-1.5 text-xs text-text-muted mb-5">
+        <button onClick={() => navigate('/dashboard')} className="hover:text-primary-600 transition-colors">Documents</button>
+        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
+        <span className="text-text-secondary font-medium truncate">{targetMember?.name || 'Member'}</span>
+      </nav>
 
       {/* Profile header */}
       <div className="bg-surface-card rounded-2xl border border-stone-200/60 p-5 mb-6">
@@ -123,7 +123,7 @@ export default function MemberPage() {
         onPreview={setPreviewDoc}
         onDelete={handleDelete}
         getSignedUrl={getSignedUrl}
-        canDelete={canDelete}
+        canDelete={canDeleteDoc}
       />
 
       {previewDoc && (

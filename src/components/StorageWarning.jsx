@@ -9,7 +9,8 @@ export default function StorageWarning({ familyId }) {
     if (!familyId) return
     supabase
       .from('documents')
-      .select('file_size')
+      .select('file_size, members!inner(family_id)')
+      .eq('members.family_id', familyId)
       .then(({ data }) => {
         const total = (data || []).reduce((sum, d) => sum + (d.file_size || 0), 0)
         setTotalSize(total)

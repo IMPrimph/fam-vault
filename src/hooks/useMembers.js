@@ -1,101 +1,115 @@
-import { useState, useEffect } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 
+async function fetchMembers(familyId) {
+  const { data, error } = await supabase
+    .from('members')
+    .select('*, documents(id)')
+    .eq('family_id', familyId)
+    .order('created_at')
+  if (error) throw error
+  return data || []
+}
+
 export function useMembers(familyId) {
-  const [members, setMembers] = useState([])
-  const [loading, setLoading] = useState(true)
+  const queryClient = useQueryClient()
 
-  useEffect(() => {
-    if (!familyId) return
-    fetchMembers()
-  }, [familyId])
+  const { data: members = [], isLoading: loading } = useQuery({
+    queryKey: ['members', familyId],
+    queryFn: () => fetchMembers(familyId),
+    enabled: !!familyId,
+  })
 
-  async function fetchMembers() {
-    setLoading(true)
-    const { data, error } = await supabase
-      .from('members')
-      .select('*, documents(id)')
-      .eq('family_id', familyId)
-      .order('created_at')
-    if (!error) setMembers(data || [])
-    setLoading(false)
-  }
+  const addMutation = useMutation({
+    mutationFn: async ({ name, relationship, parentMemberId, spouseMemberId }) => {
+      const { data: { user } } = await supabase.auth.getUser()
 
-  async function addMember({ name, relationship, parentMemberId, spouseMemberId }) {
-    const { data: { user } } = await supabase.auth.getUser()
-
-    const { data, error } = await supabase
-      .from('members')
-      .insert({
-        family_id: familyId,
-        name,
-        relationship,
-        parent_member_id: parentMemberId || null,
-        spouse_member_id: spouseMemberId || null,
-        created_by: user.id,
-      })
-      .select()
-      .single()
-
-    if (error) throw error
-
-    // If spouse was set, enforce bidirectional link
-    if (spouseMemberId) {
-      const { error: spouseError } = await supabase
+      const { data, error } = await supabase
         .from('members')
-        .update({ spouse_member_id: data.id })
-        .eq('id', spouseMemberId)
+        .insert({
+          family_id: familyId,
+          name,
+          relationship,
+          parent_member_id: parentMemberId || null,
+          spouse_member_id: spouseMemberId || null,
+          created_by: user.id,
+        })
+        .select()
+        .single()
 
-      if (spouseError) {
-        // Rollback: delete the entire member we just created (not just clear the link)
-        await supabase.from('members').delete().eq('id', data.id)
-        throw new Error('Failed to create spouse link: ' + spouseError.message)
+      if (error) throw error
+
+      if (spouseMemberId) {
+        const { error: spouseError } = await supabase
+          .from('members')
+          .update({ spouse_member_id: data.id })
+          .eq('id', spouseMemberId)
+
+        if (spouseError) {
+          await supabase.from('members').delete().eq('id', data.id)
+          throw new Error('Failed to create spouse link: ' + spouseError.message)
+        }
       }
-    }
 
-    await fetchMembers()
-    return data
-  }
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['members', familyId] })
+    },
+  })
 
-  async function updateMember(id, updates) {
-    const { error } = await supabase
-      .from('members')
-      .update(updates)
-      .eq('id', id)
-    if (error) throw error
-    await fetchMembers()
-  }
-
-  async function deleteMember(id) {
-    // Collect file paths before deleting (for cleanup after)
-    const { data: docs } = await supabase
-      .from('documents')
-      .select('file_url')
-      .eq('member_id', id)
-
-    // Clear spouse back-reference
-    const member = members.find(m => m.id === id)
-    if (member?.spouse_member_id) {
-      await supabase
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, updates }) => {
+      const { error } = await supabase
         .from('members')
-        .update({ spouse_member_id: null })
-        .eq('id', member.spouse_member_id)
-    }
+        .update(updates)
+        .eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['members', familyId] })
+    },
+  })
 
-    // Delete the member row (cascades to documents in DB)
-    const { error } = await supabase
-      .from('members')
-      .delete()
-      .eq('id', id)
-    if (error) throw error
+  const deleteMutation = useMutation({
+    mutationFn: async (id) => {
+      const { data: docs } = await supabase
+        .from('documents')
+        .select('file_url')
+        .eq('member_id', id)
 
-    // Best-effort storage cleanup after DB is consistent
-    if (docs?.length) {
-      const paths = docs.map(d => d.file_url)
-      await supabase.storage.from('documents').remove(paths).catch(() => {})
-    }
-    await fetchMembers()
+      const member = members.find(m => m.id === id)
+      if (member?.spouse_member_id) {
+        await supabase
+          .from('members')
+          .update({ spouse_member_id: null })
+          .eq('id', member.spouse_member_id)
+      }
+
+      const { error } = await supabase
+        .from('members')
+        .delete()
+        .eq('id', id)
+      if (error) throw error
+
+      if (docs?.length) {
+        const paths = docs.map(d => d.file_url)
+        await supabase.storage.from('documents').remove(paths).catch(() => {})
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['members', familyId] })
+      queryClient.invalidateQueries({ queryKey: ['allDocuments'] })
+      queryClient.invalidateQueries({ queryKey: ['documents'] })
+    },
+  })
+
+  return {
+    members,
+    loading,
+    addMember: addMutation.mutateAsync,
+    updateMember: (id, updates) => updateMutation.mutateAsync({ id, updates }),
+    deleteMember: deleteMutation.mutateAsync,
+    refetch: () => queryClient.invalidateQueries({ queryKey: ['members', familyId] }),
   }
-
-  return { members, loading, addMember, updateMember, deleteMember, refetch: fetchMembers }
 }

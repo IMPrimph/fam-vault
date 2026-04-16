@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { formatFileSize, formatDate } from '../utils/format'
+import { formatFileSize } from '../utils/format'
 
 export default function DocumentPreview({ doc, getSignedUrl, onClose }) {
   const [url, setUrl] = useState(null)
@@ -85,11 +85,8 @@ export default function DocumentPreview({ doc, getSignedUrl, onClose }) {
         </div>
       </div>
 
-      {/* Content area */}
-      <div
-        className="flex-1 flex items-center justify-center p-4 overflow-auto"
-        onClick={e => e.stopPropagation()}
-      >
+      {/* Content area — clicking the padding closes, clicking the media doesn't */}
+      <div className="flex-1 flex items-center justify-center p-4 overflow-auto">
         {loading ? (
           <div className="animate-spin rounded-full h-8 w-8 border-2 border-white border-t-transparent" />
         ) : isImage ? (
@@ -98,6 +95,7 @@ export default function DocumentPreview({ doc, getSignedUrl, onClose }) {
             alt={doc.label}
             className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
             style={{ maxHeight: 'calc(100vh - 80px)' }}
+            onClick={e => e.stopPropagation()}
           />
         ) : (
           <iframe
@@ -105,6 +103,7 @@ export default function DocumentPreview({ doc, getSignedUrl, onClose }) {
             className="w-full max-w-4xl bg-white rounded-lg shadow-2xl"
             style={{ height: 'calc(100vh - 80px)' }}
             title={doc.label}
+            onClick={e => e.stopPropagation()}
           />
         )}
       </div>

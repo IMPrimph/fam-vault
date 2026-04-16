@@ -28,6 +28,30 @@ html {
   -moz-osx-font-smoothing: grayscale;
 }
 
+html.dark {
+  --color-primary-50: #1e1b4b;
+  --color-primary-100: #2e1065;
+  --color-primary-200: #3730a3;
+  --color-primary-300: #4338ca;
+  --color-primary-400: #6366f1;
+  --color-primary-500: #818cf8;
+  --color-primary-600: #a5b4fc;
+  --color-primary-700: #c7d2fe;
+  --color-primary-800: #e0e7ff;
+  --color-primary-900: #eef2ff;
+
+  --color-surface: #0c0a09;
+  --color-surface-card: #1c1917;
+  --color-surface-hover: #292524;
+  --color-surface-muted: #1c1917;
+
+  --color-text-primary: #fafaf9;
+  --color-text-secondary: #a8a29e;
+  --color-text-muted: #78716c;
+
+  color-scheme: dark;
+}
+
 body {
   margin: 0;
   background: var(--color-surface);
@@ -39,3 +63,23 @@ body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #d6d3d1; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #a8a29e; }
+html.dark ::-webkit-scrollbar-thumb { background: #44403c; }
+html.dark ::-webkit-scrollbar-thumb:hover { background: #57534e; }
+
+/* Dark mode overrides for hardcoded Tailwind stone colors */
+html.dark .border-stone-200\/60,
+html.dark .border-stone-200 { border-color: #292524; }
+html.dark .border-stone-100 { border-color: #1c1917; }
+html.dark .border-stone-300 { border-color: #44403c; }
+html.dark .border-stone-300\/60 { border-color: rgb(68 64 60 / 0.6); }
+html.dark .bg-stone-100 { background-color: #292524; }
+html.dark .bg-stone-200 { background-color: #44403c; }
+html.dark .bg-red-50 { background-color: #2c1517; }
+html.dark .bg-amber-50 { background-color: #2c2517; }
+html.dark .bg-amber-100 { background-color: #3d3117; }
+html.dark .bg-sky-100 { background-color: #0c2d48; }
+html.dark .bg-emerald-50 { background-color: #0c2d1b; }
+html.dark .bg-emerald-100 { background-color: #103d24; }
+html.dark .bg-primary-50 { background-color: #1e1b4b; }
+html.dark .from-stone-50 { --tw-gradient-from: #1c1917; }
+html.dark .to-stone-100 { --tw-gradient-to: #292524; }

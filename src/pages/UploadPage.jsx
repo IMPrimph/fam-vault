@@ -28,10 +28,13 @@ export default function UploadPage() {
 
   return (
     <div className="p-4 md:p-6 lg:p-8 max-w-lg mx-auto">
-      <button onClick={() => navigate(-1)} className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-primary-600 transition-colors mb-5">
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" /></svg>
-        Back
-      </button>
+      <nav className="flex items-center gap-1.5 text-xs text-text-muted mb-5">
+        <button onClick={() => navigate('/dashboard')} className="hover:text-primary-600 transition-colors">Documents</button>
+        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
+        <button onClick={() => navigate(`/member/${id}`)} className="hover:text-primary-600 transition-colors">{targetMember?.name || 'Member'}</button>
+        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
+        <span className="text-text-secondary font-medium">Upload</span>
+      </nav>
 
       <h1 className="text-xl font-bold text-text-primary mb-1">Upload Document</h1>
       {targetMember && (
