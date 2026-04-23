@@ -5,18 +5,26 @@ export default function DocumentPreview({ doc, getSignedUrl, onClose }) {
   const [url, setUrl] = useState(null)
   const [loading, setLoading] = useState(true)
   const [downloading, setDownloading] = useState(false)
+  const [loadError, setLoadError] = useState(false)
+  const [rotation, setRotation] = useState(0)
   const isImage = doc.file_type?.startsWith('image/')
+  const isPdf = doc.file_type === 'application/pdf' || doc.file_url?.toLowerCase().endsWith('.pdf')
   const categoryName = doc.categories?.name || ''
   const memberName = doc.members?.name || ''
 
   useEffect(() => {
     let cancelled = false
     setLoading(true)
+    setLoadError(false)
+    setRotation(0)
     getSignedUrl(doc.file_url)
       .then(u => { if (!cancelled) { setUrl(u); setLoading(false) } })
-      .catch(() => { if (!cancelled) setLoading(false) })
+      .catch(() => { if (!cancelled) { setLoadError(true); setLoading(false) } })
     return () => { cancelled = true }
   }, [doc.file_url, getSignedUrl])
+
+  const rotate = (delta) => setRotation(r => (((r + delta) % 360) + 360) % 360)
+  const isQuarter = rotation % 180 !== 0
 
   // Close on Escape key
   useEffect(() => {
@@ -65,6 +73,28 @@ export default function DocumentPreview({ doc, getSignedUrl, onClose }) {
 
         {/* Right: actions */}
         <div className="flex items-center gap-1 shrink-0">
+          {isImage && url && (
+            <>
+              <button
+                onClick={() => rotate(-90)}
+                aria-label="Rotate left"
+                title="Rotate left"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/10 text-sm font-medium transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3" /></svg>
+                <span className="hidden sm:inline">Rotate Left</span>
+              </button>
+              <button
+                onClick={() => rotate(90)}
+                aria-label="Rotate right"
+                title="Rotate right"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/10 text-sm font-medium transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="m15 15 6-6m0 0-6-6m6 6H9a6 6 0 0 0 0 12h3" /></svg>
+                <span className="hidden sm:inline">Rotate Right</span>
+              </button>
+            </>
+          )}
           <button
             onClick={handleDownload}
             disabled={downloading || !url}
@@ -91,13 +121,30 @@ export default function DocumentPreview({ doc, getSignedUrl, onClose }) {
       <div className="flex-1 flex items-center justify-center p-4 overflow-auto">
         {loading ? (
           <div className="animate-spin rounded-full h-8 w-8 border-2 border-white border-t-transparent" />
+        ) : loadError || !url ? (
+          <PreviewError doc={doc} onClose={onClose} />
         ) : isImage ? (
           <img
             src={url}
             alt={doc.label}
-            className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
-            style={{ maxHeight: 'calc(100vh - 80px)' }}
+            className="object-contain rounded-lg shadow-2xl transition-transform duration-200"
+            style={{
+              // At 90°/270° the image's natural height becomes its display
+              // width and vice versa, so we swap the caps to keep it inside
+              // the viewport without clipping.
+              maxWidth: isQuarter ? 'calc(100vh - 80px)' : '100%',
+              maxHeight: isQuarter ? '100%' : 'calc(100vh - 80px)',
+              transform: `rotate(${rotation}deg)`,
+            }}
             onClick={e => e.stopPropagation()}
+          />
+        ) : isPdf ? (
+          <PdfFrame
+            key={url}
+            url={url}
+            label={doc.label}
+            onOpen={() => window.open(url, '_blank', 'noopener,noreferrer')}
+            onDownload={handleDownload}
           />
         ) : (
           <iframe
@@ -109,6 +156,62 @@ export default function DocumentPreview({ doc, getSignedUrl, onClose }) {
           />
         )}
       </div>
+    </div>
+  )
+}
+
+// PDF-specific frame: <object> with explicit type is the most reliable
+// way to inline-render PDFs across browsers. Falls back to an action panel
+// (download / open-in-new-tab) when the browser refuses to render (common
+// on iOS Safari or when the blob MIME can't be inferred).
+function PdfFrame({ url, label, onOpen, onDownload }) {
+  const [errored, setErrored] = useState(false)
+
+  if (errored) {
+    return (
+      <div className="bg-surface-card rounded-2xl p-8 max-w-md text-center shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center mx-auto mb-3">
+          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg>
+        </div>
+        <p className="text-sm font-semibold text-text-primary mb-1">{label}</p>
+        <p className="text-xs text-text-muted mb-5">This browser can't preview PDFs inline. Open it in a new tab or download it.</p>
+        <div className="flex gap-2 justify-center">
+          <button onClick={onOpen} className="px-4 py-2 bg-primary-600 text-white rounded-xl text-sm font-semibold hover:bg-primary-700 transition-colors">Open in new tab</button>
+          <button onClick={onDownload} className="px-4 py-2 bg-surface border border-stone-300 text-text-secondary rounded-xl text-sm font-medium hover:bg-surface-hover transition-colors">Download</button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <object
+      data={url}
+      type="application/pdf"
+      className="w-full max-w-4xl bg-white rounded-lg shadow-2xl"
+      style={{ height: 'calc(100vh - 80px)' }}
+      aria-label={label}
+      onClick={e => e.stopPropagation()}
+    >
+      {/* Rendered by the browser if <object> can't display the PDF. */}
+      <iframe
+        src={url}
+        className="w-full h-full bg-white rounded-lg"
+        title={label}
+        onError={() => setErrored(true)}
+      />
+    </object>
+  )
+}
+
+function PreviewError({ doc, onClose }) {
+  return (
+    <div className="bg-surface-card rounded-2xl p-8 max-w-md text-center shadow-2xl" onClick={e => e.stopPropagation()}>
+      <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-500 flex items-center justify-center mx-auto mb-3">
+        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" /></svg>
+      </div>
+      <p className="text-sm font-semibold text-text-primary mb-1">Couldn't load preview</p>
+      <p className="text-xs text-text-muted mb-5">"{doc.label}" is missing or inaccessible. Try again or check if it was deleted.</p>
+      <button onClick={onClose} className="px-4 py-2 bg-primary-600 text-white rounded-xl text-sm font-semibold hover:bg-primary-700 transition-colors">Close</button>
     </div>
   )
 }
