@@ -1,11 +1,14 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { useToast } from '../context/ToastContext'
+import { useDialog } from '../context/DialogContext'
 import { useMembers } from '../hooks/useMembers'
 import { useDocuments } from '../hooks/useDocuments'
 import { getAvatarGradient, getInitials } from '../utils/avatar'
 import DocumentGrid from '../components/DocumentGrid'
 import DocumentPreview from '../components/DocumentPreview'
+import EditDocumentForm from '../components/EditDocumentForm'
 import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
 
@@ -13,35 +16,58 @@ export default function MemberPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { member: authMember, isAdmin } = useAuth()
+  const toast = useToast()
+  const { confirm } = useDialog()
   const { members, deleteMember } = useMembers(authMember?.family_id)
   const { documents, loading, deleteDocument, getSignedUrl } = useDocuments(id)
   const [previewDoc, setPreviewDoc] = useState(null)
+  const [editingDoc, setEditingDoc] = useState(null)
   const [zipping, setZipping] = useState(false)
-  const [zipError, setZipError] = useState('')
 
   const targetMember = members.find(m => m.id === id)
   const isOwnProfile = targetMember?.user_id === authMember?.user_id
   const canUpload = isAdmin || isOwnProfile
-  const canDeleteDoc = (doc) => isAdmin || doc.uploaded_by === authMember?.user_id
+  const canModifyDoc = (doc) => isAdmin || doc.uploaded_by === authMember?.user_id
   const canDeleteMember = isAdmin && targetMember?.id !== authMember?.id
   const gradient = targetMember ? getAvatarGradient(targetMember.name) : 'from-gray-400 to-gray-500'
   const initials = targetMember ? getInitials(targetMember.name) : '?'
 
   async function handleDelete(doc) {
-    if (!confirm(`Delete "${doc.label}"? This cannot be undone.`)) return
-    await deleteDocument(doc)
+    const ok = await confirm({
+      title: 'Delete this document?',
+      message: `"${doc.label}" will be permanently removed for everyone in the family. This can't be undone.`,
+      confirmLabel: 'Delete',
+      destructive: true,
+    })
+    if (!ok) return
+    try {
+      await deleteDocument(doc)
+      toast.success(`Deleted "${doc.label}"`)
+    } catch (err) {
+      toast.error(err.message || 'Could not delete the document')
+    }
   }
 
   async function handleDeleteMember() {
-    if (!confirm(`Delete ${targetMember.name} and all their documents? This cannot be undone.`)) return
-    await deleteMember(targetMember.id)
-    navigate('/dashboard')
+    const ok = await confirm({
+      title: `Remove ${targetMember.name}?`,
+      message: `${targetMember.name} and all ${documents.length} of their documents will be permanently deleted. This can't be undone.`,
+      confirmLabel: 'Delete member',
+      destructive: true,
+    })
+    if (!ok) return
+    try {
+      await deleteMember(targetMember.id)
+      toast.success(`Removed ${targetMember.name}`)
+      navigate('/dashboard')
+    } catch (err) {
+      toast.error(err.message || 'Could not remove this member')
+    }
   }
 
   async function handleDownloadAll() {
     if (!documents.length) return
     setZipping(true)
-    setZipError('')
     const zip = new JSZip()
     let added = 0
     const failures = []
@@ -62,12 +88,16 @@ export default function MemberPage() {
         }
       }
       if (added === 0) {
-        setZipError('Could not download any documents.')
+        toast.error('Could not download any documents. Check your connection.')
         return
       }
       const content = await zip.generateAsync({ type: 'blob' })
       saveAs(content, `${targetMember?.name || 'documents'}.zip`)
-      if (failures.length) setZipError(`Skipped ${failures.length} file${failures.length === 1 ? '' : 's'} that failed to download.`)
+      if (failures.length) {
+        toast.info(`Downloaded ${added}, skipped ${failures.length} that failed.`)
+      } else {
+        toast.success(`Downloaded ${added} ${added === 1 ? 'document' : 'documents'}`)
+      }
     } finally {
       setZipping(false)
     }
@@ -110,17 +140,14 @@ export default function MemberPage() {
               </button>
             )}
             {documents.length > 0 && (
-              <div className="flex flex-col items-start gap-1">
-                <button
-                  onClick={handleDownloadAll}
-                  disabled={zipping}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-surface border border-stone-200 text-text-secondary rounded-xl text-sm font-medium hover:bg-surface-hover transition-colors active:scale-[0.98]"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
-                  {zipping ? 'Zipping...' : 'Download All'}
-                </button>
-                {zipError && <p className="text-[11px] text-amber-600">{zipError}</p>}
-              </div>
+              <button
+                onClick={handleDownloadAll}
+                disabled={zipping}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-surface border border-stone-200 text-text-secondary rounded-xl text-sm font-medium hover:bg-surface-hover disabled:opacity-50 transition-colors active:scale-[0.98]"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
+                {zipping ? 'Preparing...' : 'Download all'}
+              </button>
             )}
           </div>
           {canDeleteMember && (
@@ -141,12 +168,24 @@ export default function MemberPage() {
         documents={documents}
         onPreview={setPreviewDoc}
         onDelete={handleDelete}
+        onEdit={setEditingDoc}
         getSignedUrl={getSignedUrl}
-        canDelete={canDeleteDoc}
+        canDelete={canModifyDoc}
+        canEdit={canModifyDoc}
+        emptyMessage={canUpload ? 'No documents yet. Use Upload to add the first one.' : 'No documents yet.'}
       />
 
       {previewDoc && (
-        <DocumentPreview doc={previewDoc} getSignedUrl={getSignedUrl} onClose={() => setPreviewDoc(null)} />
+        <DocumentPreview
+          doc={previewDoc}
+          getSignedUrl={getSignedUrl}
+          onClose={() => setPreviewDoc(null)}
+          canEdit={canModifyDoc(previewDoc)}
+          familyId={authMember?.family_id}
+        />
+      )}
+      {editingDoc && (
+        <EditDocumentForm doc={editingDoc} familyId={authMember?.family_id} onClose={() => setEditingDoc(null)} />
       )}
     </div>
   )

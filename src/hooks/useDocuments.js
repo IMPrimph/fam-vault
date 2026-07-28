@@ -1,8 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
-import { getCachedSignedUrl, invalidateCachedUrl } from '../lib/signedUrlCache'
+import { getCachedSignedUrl } from '../lib/signedUrlCache'
 import { generateThumbnail, getThumbPath } from '../lib/thumbnails'
-import { removeFromOfflineCache } from '../lib/offlineSync'
+import { purgeDocumentBlobs } from '../lib/documentBlobs'
 
 async function fetchDocuments(memberId) {
   const { data, error } = await supabase
@@ -82,9 +82,8 @@ export function useDocuments(memberId) {
       const { data, error } = await supabase.rpc('delete_document', { doc_id: doc.id })
       if (error) throw error
       if (data?.error) throw new Error(data.error)
-      invalidateCachedUrl(doc.file_url)
-      invalidateCachedUrl(getThumbPath(doc.file_url))
-      await removeFromOfflineCache(doc.file_url).catch(e => console.warn('Offline cache remove failed', e))
+      // The row is gone; clearing the blobs is cleanup, not part of the delete.
+      await purgeDocumentBlobs(data?.paths)
       return doc
     },
     onSuccess: () => {

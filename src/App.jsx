@@ -2,8 +2,9 @@ import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { ErrorBoundary } from 'react-error-boundary'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import { ToastProvider } from './context/ToastContext'
+import { DialogProvider } from './context/DialogContext'
 import AuthGuard from './components/AuthGuard'
-import AdminGuard from './components/AdminGuard'
 import Layout from './components/Layout'
 import CreateFamily from './components/CreateFamily'
 import InstallPrompt from './components/InstallPrompt'
@@ -92,7 +93,8 @@ function AppRoutes() {
           <Route path="/family" element={<FamilyPage />} />
           <Route path="/member/:id" element={<MemberPage />} />
           <Route path="/member/:id/upload" element={<UploadPage />} />
-          <Route path="/settings" element={<AdminGuard><SettingsPage /></AdminGuard>} />
+          {/* Settings is reachable by every member; individual tabs gate on role. */}
+          <Route path="/settings" element={<SettingsPage />} />
         </Route>
       </Routes>
     </Suspense>
@@ -104,9 +106,13 @@ export default function App() {
     <ErrorBoundary FallbackComponent={ErrorFallback} onReset={() => window.location.reload()}>
       <BrowserRouter>
         <AuthProvider>
-          <AppRoutes />
-          <InstallPrompt />
-          <UpdatePrompt />
+          <ToastProvider>
+            <DialogProvider>
+              <AppRoutes />
+              <InstallPrompt />
+              <UpdatePrompt />
+            </DialogProvider>
+          </ToastProvider>
         </AuthProvider>
       </BrowserRouter>
     </ErrorBoundary>

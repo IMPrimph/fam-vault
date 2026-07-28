@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import Modal from './Modal'
 
 const RELATIONSHIP_SUGGESTIONS = [
   'Father', 'Mother', 'Brother', 'Sister', 'Son', 'Daughter',
@@ -28,18 +29,8 @@ export default function AddMemberForm({ members, onSubmit, onClose }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div className="bg-surface-card rounded-2xl w-full max-w-md shadow-2xl border border-stone-200/60 animate-in fade-in zoom-in-95" onClick={e => e.stopPropagation()}>
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-stone-100">
-          <h2 className="text-lg font-semibold text-text-primary">Add Family Member</h2>
-          <button onClick={onClose} aria-label="Close" className="p-1 rounded-lg text-text-muted hover:bg-surface-hover transition-colors">
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
-          </button>
-        </div>
-
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+    <Modal title="Add Family Member" onClose={onClose}>
+      <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-5">
           <div>
             <label className="block text-sm font-medium text-text-primary mb-1.5">Name</label>
             <input
@@ -106,8 +97,7 @@ export default function AddMemberForm({ members, onSubmit, onClose }) {
           >
             {loading ? 'Adding...' : 'Add Member'}
           </button>
-        </form>
-      </div>
-    </div>
+      </form>
+    </Modal>
   )
 }

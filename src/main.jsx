@@ -5,8 +5,15 @@ import { queryClient } from './lib/queryClient'
 import { createIDBPersister } from './lib/idbPersister'
 import { supabase } from './lib/supabase'
 import { wipeOfflineData } from './lib/offlineSync'
+import { initTheme } from './lib/theme'
 import './index.css'
 import App from './App'
+
+// Paint in the right theme from the first frame. The usual trick is an inline
+// script in index.html, but the CSP here is `script-src 'self'` with no nonce,
+// so an inline script would be blocked in production. This module runs before
+// createRoot, which is early enough to avoid a flash.
+initTheme()
 
 const MEMBER_CACHE_KEY = 'fv:member'
 

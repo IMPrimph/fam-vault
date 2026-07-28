@@ -28,6 +28,25 @@ html {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Warm: a paper/sepia light theme. Easier on the eyes than stark white for
+   long reading, and noticeably kinder on older screens. Keeps the indigo
+   accent ramp so button contrast is unchanged; only the tints are warmed. */
+html.warm {
+  --color-primary-50: #efebfa;
+  --color-primary-100: #e2dcf6;
+
+  --color-surface: #f4ecdf;
+  --color-surface-card: #fdf8ef;
+  --color-surface-hover: #ece1cf;
+  --color-surface-muted: #e7dbc6;
+
+  --color-text-primary: #3a2e21;
+  --color-text-secondary: #6b5a45;
+  --color-text-muted: #9b8a72;
+
+  color-scheme: light;
+}
+
 html.dark {
   --color-primary-50: #1e1b4b;
   --color-primary-100: #2e1065;
@@ -70,14 +89,20 @@ body {
 html.dark ::-webkit-scrollbar-thumb { background: #44403c; }
 html.dark ::-webkit-scrollbar-thumb:hover { background: #57534e; }
 
-/* Dark mode overrides for hardcoded Tailwind stone colors */
+/* Tailwind resolves plain utilities through CSS vars, but bakes opacity
+   variants (e.g. stone-200/60) to literal hex — so themed surfaces need these
+   overrides for any hardcoded palette colour used in the components. */
+
+/* --- Dark --- */
 html.dark .border-stone-200\/60,
 html.dark .border-stone-200 { border-color: #292524; }
+html.dark .border-stone-200\/80 { border-color: rgb(41 37 36 / 0.8); }
 html.dark .border-stone-100 { border-color: #1c1917; }
 html.dark .border-stone-300 { border-color: #44403c; }
 html.dark .border-stone-300\/60 { border-color: rgb(68 64 60 / 0.6); }
 html.dark .bg-stone-100 { background-color: #292524; }
 html.dark .bg-stone-200 { background-color: #44403c; }
+html.dark .bg-stone-300 { background-color: #57534e; }
 html.dark .bg-red-50 { background-color: #2c1517; }
 html.dark .bg-amber-50 { background-color: #2c2517; }
 html.dark .bg-amber-100 { background-color: #3d3117; }
@@ -87,3 +112,32 @@ html.dark .bg-emerald-100 { background-color: #103d24; }
 html.dark .bg-primary-50 { background-color: #1e1b4b; }
 html.dark .from-stone-50 { --tw-gradient-from: #1c1917; }
 html.dark .to-stone-100 { --tw-gradient-to: #292524; }
+/* The sign-in and invite screens blend through white; unthemed it punched a
+   bright band across the middle of an otherwise dark page. */
+html.dark .via-white { --tw-gradient-via: #0c0a09; }
+html.dark .to-purple-50 { --tw-gradient-to: #1c1917; }
+/* Thumbnail star sits on a white chip that glared against dark cards. */
+html.dark .bg-white\/85 { background-color: rgb(28 25 23 / 0.85); }
+html.dark .bg-white\/90 { background-color: rgb(28 25 23 / 0.9); }
+
+/* --- Warm --- */
+html.warm .border-stone-200\/60,
+html.warm .border-stone-200 { border-color: #e2d7c2; }
+html.warm .border-stone-200\/80 { border-color: rgb(226 215 194 / 0.8); }
+html.warm .border-stone-100 { border-color: #ebe1d0; }
+html.warm .border-stone-300 { border-color: #d4c6ac; }
+html.warm .border-stone-300\/60 { border-color: rgb(212 198 172 / 0.6); }
+html.warm .bg-stone-100 { background-color: #ece2d1; }
+html.warm .bg-stone-200 { background-color: #ded2ba; }
+html.warm .bg-stone-300 { background-color: #cfc0a4; }
+html.warm .text-stone-400 { color: #b0a08a; }
+html.warm .bg-primary-50 { background-color: #efebfa; }
+html.warm .from-stone-50 { --tw-gradient-from: #f7f1e6; }
+html.warm .to-stone-100 { --tw-gradient-to: #ece2d1; }
+html.warm .via-white { --tw-gradient-via: #faf4ea; }
+html.warm .to-purple-50 { --tw-gradient-to: #f2e8dc; }
+html.warm .bg-white\/85 { background-color: rgb(253 248 239 / 0.85); }
+html.warm .bg-white\/90 { background-color: rgb(253 248 239 / 0.9); }
+html.warm .shadow-stone-200\/50 { --tw-shadow-color: rgb(212 198 172 / 0.5); }
+html.warm ::-webkit-scrollbar-thumb { background: #cfc0a4; }
+html.warm ::-webkit-scrollbar-thumb:hover { background: #b8a689; }

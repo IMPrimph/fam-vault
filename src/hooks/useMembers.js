@@ -1,5 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
+import { getThumbPath } from '../lib/thumbnails'
+import { removeFromOfflineCache } from '../lib/offlineSync'
 
 async function fetchMembers(familyId) {
   const { data, error } = await supabase
@@ -133,14 +135,21 @@ export function useMembers(familyId) {
       if (error) throw error
 
       if (docs?.length) {
-        const paths = docs.map(d => d.file_url)
+        // Remove the generated thumbnails alongside the originals. Deleting
+        // only file_url left every _thumb.jpg orphaned in the bucket, still
+        // counting against the family's 1GB quota with no way to reach it.
+        const paths = docs.flatMap(d => [d.file_url, getThumbPath(d.file_url)])
         await supabase.storage.from('documents').remove(paths).catch(() => {})
+        await Promise.all(
+          docs.map(d => removeFromOfflineCache(d.file_url).catch(() => {}))
+        )
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['members', familyId] })
       queryClient.invalidateQueries({ queryKey: ['allDocuments'] })
       queryClient.invalidateQueries({ queryKey: ['documents'] })
+      queryClient.invalidateQueries({ queryKey: ['storageUsage'] })
     },
   })
 

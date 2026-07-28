@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
+import { useToast } from '../context/ToastContext'
 import { useMembers } from '../hooks/useMembers'
 import FamilyTree from '../components/FamilyTree'
 import MemberGrid from '../components/MemberGrid'
@@ -7,9 +8,16 @@ import AddMemberForm from '../components/AddMemberForm'
 
 export default function FamilyPage() {
   const { member, isAdmin } = useAuth()
+  const toast = useToast()
   const { members, loading, addMember } = useMembers(member?.family_id)
   const [showAddForm, setShowAddForm] = useState(false)
   const [showTree, setShowTree] = useState(false)
+
+  async function handleAddMember(data) {
+    const created = await addMember(data)
+    toast.success(`Added ${created?.name || data.name} to the family`)
+    return created
+  }
 
   if (loading) return (
     <div className="flex items-center justify-center h-64">
@@ -57,7 +65,7 @@ export default function FamilyPage() {
       <MemberGrid members={members} />
 
       {showAddForm && (
-        <AddMemberForm members={members} onSubmit={addMember} onClose={() => setShowAddForm(false)} />
+        <AddMemberForm members={members} onSubmit={handleAddMember} onClose={() => setShowAddForm(false)} />
       )}
     </div>
   )

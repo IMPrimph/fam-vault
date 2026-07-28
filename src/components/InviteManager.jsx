@@ -1,14 +1,21 @@
 import { useState } from 'react'
 import { useInvites } from '../hooks/useInvites'
+import { useMembers } from '../hooks/useMembers'
+import { useToast } from '../context/ToastContext'
+import { useDialog } from '../context/DialogContext'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-export default function InviteManager({ familyId, members }) {
+export default function InviteManager({ familyId }) {
   const { invites, createInvite, revokeInvite } = useInvites(familyId)
+  const { members } = useMembers(familyId)
+  const toast = useToast()
+  const { confirm } = useDialog()
   const [selectedMember, setSelectedMember] = useState('')
   const [email, setEmail] = useState('')
   const [copiedId, setCopiedId] = useState(null)
   const [error, setError] = useState('')
+  const [creating, setCreating] = useState(false)
 
   const invitableMembers = members.filter(m => {
     if (m.user_id) return false
@@ -20,20 +27,48 @@ export default function InviteManager({ familyId, members }) {
     if (!selectedMember) return
     const trimmed = email.trim()
     if (!trimmed || !EMAIL_RE.test(trimmed)) {
-      setError('Enter the email the invitee will sign in with — this binds the invite to their account.')
+      setError('Enter the email they will sign in with — the invite only works for that address.')
       return
     }
     setError('')
-    await createInvite({ memberId: selectedMember, email: trimmed })
-    setSelectedMember('')
-    setEmail('')
+    setCreating(true)
+    try {
+      await createInvite({ memberId: selectedMember, email: trimmed })
+      setSelectedMember('')
+      setEmail('')
+      toast.success('Invite link created — copy it and send it to them')
+    } catch (err) {
+      toast.error(err.message || 'Could not create the invite')
+    } finally {
+      setCreating(false)
+    }
   }
 
-  function copyLink(token) {
+  async function handleRevoke(inv) {
+    const ok = await confirm({
+      title: 'Revoke this invite?',
+      message: `The link sent to ${inv.members?.name || 'this person'} will stop working. You can create a new one afterwards.`,
+      confirmLabel: 'Revoke',
+      destructive: true,
+    })
+    if (!ok) return
+    try {
+      await revokeInvite(inv.id)
+      toast.success('Invite revoked')
+    } catch (err) {
+      toast.error(err.message || 'Could not revoke the invite')
+    }
+  }
+
+  async function copyLink(token) {
     const url = `${window.location.origin}/invite/${token}`
-    navigator.clipboard.writeText(url)
-    setCopiedId(token)
-    setTimeout(() => setCopiedId(null), 2000)
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopiedId(token)
+      setTimeout(() => setCopiedId(null), 2000)
+    } catch {
+      toast.error('Could not copy — select and copy the link manually')
+    }
   }
 
   return (
@@ -66,10 +101,10 @@ export default function InviteManager({ familyId, members }) {
             />
             <button
               onClick={handleCreate}
-              disabled={!selectedMember || !email.trim()}
+              disabled={creating || !selectedMember || !email.trim()}
               className="px-5 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-semibold hover:bg-primary-700 disabled:opacity-50 transition-colors active:scale-[0.98]"
             >
-              Generate
+              {creating ? 'Creating...' : 'Generate'}
             </button>
           </div>
           {error && <p className="text-xs text-red-600">{error}</p>}
@@ -107,7 +142,7 @@ export default function InviteManager({ familyId, members }) {
                     {copiedId === inv.token ? 'Copied!' : 'Copy Link'}
                   </button>
                   <button
-                    onClick={() => revokeInvite(inv.id)}
+                    onClick={() => handleRevoke(inv)}
                     className="px-3 py-1.5 text-xs text-red-500 hover:bg-red-50 rounded-lg font-medium transition-colors"
                   >
                     Revoke
