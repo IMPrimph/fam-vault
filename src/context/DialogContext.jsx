@@ -59,7 +59,8 @@ export function DialogProvider({ children }) {
                 <input
                   id="dialog-input"
                   ref={inputRef}
-                  type="text"
+                  type={dialog.inputType || 'text'}
+                  autoComplete={dialog.inputType === 'password' ? 'off' : undefined}
                   required
                   defaultValue={dialog.value}
                   className="w-full px-3.5 py-2.5 bg-surface border border-stone-300 rounded-xl text-base sm:text-sm text-text-primary focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 outline-none transition-all"

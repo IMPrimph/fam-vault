@@ -1,14 +1,17 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { useDialog } from '../context/DialogContext'
 import { useMembers } from '../hooks/useMembers'
-import { useDocuments } from '../hooks/useDocuments'
-import { getAvatarGradient, getInitials } from '../utils/avatar'
-import DocumentGrid from '../components/DocumentGrid'
-import DocumentPreview from '../components/DocumentPreview'
-import EditDocumentForm from '../components/EditDocumentForm'
+import { useAllDocuments } from '../hooks/useAllDocuments'
+import { useMemberIds } from '../hooks/useMemberIds'
+import { useCategories } from '../hooks/useCategories'
+import { buildPeople, otherFilesRecord } from '../lib/idRecords'
+import { getCachedSignedUrl } from '../lib/signedUrlCache'
+import { Avatar } from '../components/ids/PersonCard'
+import RecordDetail from '../components/ids/RecordDetail'
+import { PlusIcon, DownloadIcon, TrashIcon } from '../components/ids/icons'
 import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
 
@@ -18,35 +21,24 @@ export default function MemberPage() {
   const { member: authMember, isAdmin } = useAuth()
   const toast = useToast()
   const { confirm } = useDialog()
-  const { members, deleteMember } = useMembers(authMember?.family_id)
-  const { documents, loading, deleteDocument, getSignedUrl } = useDocuments(id)
-  const [previewDoc, setPreviewDoc] = useState(null)
-  const [editingDoc, setEditingDoc] = useState(null)
+  const familyId = authMember?.family_id
+  const { members, deleteMember, loading: membersLoading } = useMembers(familyId)
+  const { documents: allDocs, loading: docsLoading } = useAllDocuments(familyId)
+  const { memberIds } = useMemberIds(familyId)
+  const { categories } = useCategories(familyId)
   const [zipping, setZipping] = useState(false)
 
-  const targetMember = members.find(m => m.id === id)
-  const isOwnProfile = targetMember?.user_id === authMember?.user_id
-  const canUpload = isAdmin || isOwnProfile
-  const canModifyDoc = (doc) => isAdmin || doc.uploaded_by === authMember?.user_id
-  const canDeleteMember = isAdmin && targetMember?.id !== authMember?.id
-  const gradient = targetMember ? getAvatarGradient(targetMember.name) : 'from-gray-400 to-gray-500'
-  const initials = targetMember ? getInitials(targetMember.name) : '?'
+  const person = useMemo(() => {
+    const target = members.find(m => m.id === id)
+    if (!target) return null
+    return buildPeople({ members: [target], documents: allDocs.filter(d => d.member_id === id), memberIds, categories })[0]
+  }, [members, allDocs, memberIds, categories, id])
 
-  async function handleDelete(doc) {
-    const ok = await confirm({
-      title: 'Delete this document?',
-      message: `"${doc.label}" will be permanently removed for everyone in the family. This can't be undone.`,
-      confirmLabel: 'Delete',
-      destructive: true,
-    })
-    if (!ok) return
-    try {
-      await deleteDocument(doc)
-      toast.success(`Deleted "${doc.label}"`)
-    } catch (err) {
-      toast.error(err.message || 'Could not delete the document')
-    }
-  }
+  const targetMember = person?.member
+  const documents = useMemo(() => allDocs.filter(d => d.member_id === id), [allDocs, id])
+  const canUpload = isAdmin || id === authMember?.id
+  const canDeleteMember = isAdmin && targetMember?.id !== authMember?.id
+  const numberCount = person?.records.filter(r => r.idNumber).length || 0
 
   async function handleDeleteMember() {
     const ok = await confirm({
@@ -74,7 +66,7 @@ export default function MemberPage() {
     try {
       for (const doc of documents) {
         try {
-          const url = await getSignedUrl(doc.file_url)
+          const url = await getCachedSignedUrl(doc.file_url)
           const resp = await fetch(url)
           if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
           const blob = await resp.blob()
@@ -103,89 +95,82 @@ export default function MemberPage() {
     }
   }
 
-  if (loading) return (
+  if ((membersLoading || docsLoading) && !person) return (
     <div className="flex items-center justify-center h-64">
       <div className="animate-spin rounded-full h-7 w-7 border-2 border-primary-600 border-t-transparent" />
     </div>
   )
 
+  if (!person) return (
+    <div className="p-6 text-center py-20">
+      <p className="text-text-secondary font-medium">This person isn't in your family tree</p>
+      <button onClick={() => navigate('/dashboard')} className="mt-4 min-h-11 px-4 bg-primary-600 text-white rounded-xl text-sm font-semibold">Back home</button>
+    </div>
+  )
+
+  const otherRecord = otherFilesRecord(person)
+  const sections = otherRecord ? [...person.records, otherRecord] : person.records
+
   return (
-    <div className="p-4 md:p-6 lg:p-8 max-w-5xl mx-auto">
-      <nav className="flex items-center gap-1.5 text-xs text-text-muted mb-5">
-        <button onClick={() => navigate('/dashboard')} className="hover:text-primary-600 transition-colors">Documents</button>
-        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
-        <span className="text-text-secondary font-medium truncate">{targetMember?.name || 'Member'}</span>
+    <div className="p-4 md:p-6 lg:p-8 max-w-3xl mx-auto">
+      <nav className="flex items-center gap-1.5 text-xs text-text-muted mb-4">
+        <button onClick={() => navigate('/dashboard')} className="hover:text-primary-600 transition-colors min-h-8">Home</button>
+        <span aria-hidden="true">›</span>
+        <span className="text-text-secondary font-medium truncate">{targetMember.name}</span>
       </nav>
 
-      {/* Profile header */}
-      <div className="bg-surface-card rounded-2xl border border-stone-200/60 p-5 mb-6">
-        <div className="flex items-center gap-4 mb-4">
-          <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${gradient} flex items-center justify-center text-white text-lg font-bold shadow-md shrink-0`}>
-            {initials}
-          </div>
+      <div className="bg-surface-card rounded-2xl border border-stone-200/60 p-4 sm:p-5 mb-5">
+        <div className="flex items-center gap-4">
+          <Avatar member={targetMember} size="lg" />
           <div className="min-w-0 flex-1">
-            <h1 className="text-xl font-bold text-text-primary truncate">{targetMember?.name}</h1>
-            <p className="text-sm text-text-muted">{targetMember?.relationship} &middot; {documents.length} document{documents.length !== 1 ? 's' : ''}</p>
+            <h1 className="text-xl font-bold text-text-primary truncate">{targetMember.name}</h1>
+            <p className="text-sm text-text-muted">
+              {targetMember.relationship} · {person.records.length} {person.records.length === 1 ? 'ID' : 'IDs'} · {numberCount} {numberCount === 1 ? 'number' : 'numbers'}
+            </p>
           </div>
         </div>
-        <div className="flex items-center justify-between">
-          <div className="flex gap-2 flex-wrap">
-            {canUpload && (
-              <button
-                onClick={() => navigate(`/member/${id}/upload`)}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-primary-600 text-white rounded-xl text-sm font-semibold hover:bg-primary-700 transition-colors shadow-sm active:scale-[0.98]"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" /></svg>
-                Upload
-              </button>
-            )}
-            {documents.length > 0 && (
-              <button
-                onClick={handleDownloadAll}
-                disabled={zipping}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-surface border border-stone-200 text-text-secondary rounded-xl text-sm font-medium hover:bg-surface-hover disabled:opacity-50 transition-colors active:scale-[0.98]"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
-                {zipping ? 'Preparing...' : 'Download all'}
-              </button>
-            )}
-          </div>
+        <div className="flex items-center gap-2 flex-wrap mt-4">
+          {canUpload && (
+            <button
+              onClick={() => navigate(`/member/${id}/upload`)}
+              className="inline-flex items-center gap-1.5 min-h-11 px-4 bg-primary-600 text-white rounded-xl text-sm font-semibold hover:bg-primary-700 transition-colors active:scale-[0.98]"
+            >
+              <PlusIcon /> Add ID
+            </button>
+          )}
+          {documents.length > 0 && (
+            <button
+              onClick={handleDownloadAll}
+              disabled={zipping}
+              className="inline-flex items-center gap-1.5 min-h-11 px-4 bg-surface border border-stone-200 text-text-secondary rounded-xl text-sm font-medium hover:bg-surface-hover disabled:opacity-50 transition-colors"
+            >
+              <DownloadIcon /> {zipping ? 'Preparing…' : 'Download all'}
+            </button>
+          )}
           {canDeleteMember && (
             <button
               onClick={handleDeleteMember}
-              className="inline-flex items-center gap-1.5 px-3 py-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl text-xs font-medium transition-colors"
-              aria-label="Delete member"
+              className="ml-auto inline-flex items-center gap-1.5 min-h-11 px-3 text-red-500 hover:text-red-600 hover:bg-red-50 rounded-xl text-sm font-medium transition-colors"
             >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg>
-              Delete
+              <TrashIcon className="w-3.5 h-3.5" /> Remove
             </button>
           )}
         </div>
       </div>
 
-      {/* Documents */}
-      <DocumentGrid
-        documents={documents}
-        onPreview={setPreviewDoc}
-        onDelete={handleDelete}
-        onEdit={setEditingDoc}
-        getSignedUrl={getSignedUrl}
-        canDelete={canModifyDoc}
-        canEdit={canModifyDoc}
-        emptyMessage={canUpload ? 'No documents yet. Use Upload to add the first one.' : 'No documents yet.'}
-      />
-
-      {previewDoc && (
-        <DocumentPreview
-          doc={previewDoc}
-          getSignedUrl={getSignedUrl}
-          onClose={() => setPreviewDoc(null)}
-          canEdit={canModifyDoc(previewDoc)}
-          familyId={authMember?.family_id}
-        />
-      )}
-      {editingDoc && (
-        <EditDocumentForm doc={editingDoc} familyId={authMember?.family_id} onClose={() => setEditingDoc(null)} />
+      {sections.length ? (
+        <div className="space-y-4">
+          {sections.map(record => (
+            <section key={record.key} className="bg-surface-card rounded-2xl border border-stone-200/60 p-4 sm:p-5" aria-label={record.categoryName}>
+              <h2 className="text-base font-semibold text-text-primary mb-3">{record.categoryName}</h2>
+              <RecordDetail record={record} member={targetMember} />
+            </section>
+          ))}
+        </div>
+      ) : (
+        <p className="text-center text-text-muted py-12">
+          No IDs yet.{canUpload ? ' Use Add ID to save a number or upload a card.' : ''}
+        </p>
       )}
     </div>
   )

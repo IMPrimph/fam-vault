@@ -9,8 +9,10 @@ const FOCUSABLE = 'a[href],button:not([disabled]),textarea:not([disabled]),input
  * doesn't slide around on mobile.
  *
  * Sizes: 'sm' for confirmations, 'md' for forms.
+ * Variant 'panel' is a bottom sheet on phones and a right-hand side panel on
+ * desktop, for content people browse rather than a quick form.
  */
-export default function Modal({ title, description, onClose, children, size = 'md', initialFocusRef }) {
+export default function Modal({ title, description, onClose, children, size = 'md', variant = 'dialog', initialFocusRef }) {
   const panelRef = useRef(null)
   const restoreRef = useRef(null)
   const titleId = useId()
@@ -54,9 +56,17 @@ export default function Modal({ title, description, onClose, children, size = 'm
     }
   }, [onClose])
 
+  const isPanel = variant === 'panel'
+  const overlayClass = isPanel
+    ? 'fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-end md:items-stretch md:justify-end'
+    : 'fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4'
+  const panelClass = isPanel
+    ? 'bg-surface-card w-full md:w-[30rem] rounded-t-2xl md:rounded-none shadow-2xl border border-stone-200/60 outline-none max-h-[92vh] md:max-h-none md:h-full overflow-y-auto overscroll-contain'
+    : `bg-surface-card w-full ${size === 'sm' ? 'sm:max-w-sm' : 'sm:max-w-md'} rounded-t-2xl sm:rounded-2xl shadow-2xl border border-stone-200/60 outline-none max-h-[90vh] overflow-y-auto`
+
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
+      className={overlayClass}
       onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}
     >
       <div
@@ -66,9 +76,10 @@ export default function Modal({ title, description, onClose, children, size = 'm
         aria-labelledby={titleId}
         tabIndex={-1}
         onKeyDown={handleKeyDown}
-        className={`bg-surface-card w-full ${size === 'sm' ? 'sm:max-w-sm' : 'sm:max-w-md'} rounded-t-2xl sm:rounded-2xl shadow-2xl border border-stone-200/60 outline-none max-h-[90vh] overflow-y-auto`}
+        className={panelClass}
       >
-        <div className="flex items-start justify-between gap-4 px-5 sm:px-6 py-4 border-b border-stone-100">
+        {isPanel && <div className="md:hidden mx-auto mt-2 h-1 w-10 rounded-full bg-stone-300" aria-hidden="true" />}
+        <div className={`flex items-start justify-between gap-4 px-5 sm:px-6 py-4 border-b border-stone-100 ${isPanel ? 'sticky top-0 bg-surface-card z-10' : ''}`}>
           <div className="min-w-0">
             <h2 id={titleId} className="text-lg font-semibold text-text-primary">{title}</h2>
             {description && <p className="text-sm text-text-muted mt-0.5">{description}</p>}

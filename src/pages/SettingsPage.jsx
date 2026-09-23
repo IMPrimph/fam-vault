@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { useDialog } from '../context/DialogContext'
 import { useFamily } from '../hooks/useFamily'
 import { useMembers } from '../hooks/useMembers'
 import { useCategories } from '../hooks/useCategories'
+import { useMemberIds } from '../hooks/useMemberIds'
 import { useProfile } from '../hooks/useProfile'
 import { useTheme } from '../hooks/useTheme'
 import { useSyncStatus } from '../hooks/useSyncStatus'
@@ -14,6 +16,7 @@ import { syncAllDocs, clearOfflineCache, getCacheStats } from '../lib/offlineSyn
 import { isOfflineEnabled, setOfflineEnabled } from '../lib/offlinePrefs'
 import InviteManager from '../components/InviteManager'
 import StorageWarning from '../components/StorageWarning'
+import BulkNumberScan from '../components/ids/BulkNumberScan'
 
 const icon = (path) => (
   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
@@ -29,6 +32,7 @@ const icon = (path) => (
  */
 const TABS = [
   { id: 'profile', label: 'Profile', adminOnly: false, icon: icon('M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z') },
+  { id: 'scan', label: 'Find numbers', adminOnly: false, icon: icon('M7.5 3.75H6A2.25 2.25 0 0 0 3.75 6v1.5M16.5 3.75H18A2.25 2.25 0 0 1 20.25 6v1.5m0 9V18A2.25 2.25 0 0 1 18 20.25h-1.5m-9 0H6A2.25 2.25 0 0 1 3.75 18v-1.5M7.5 12h9') },
   { id: 'general', label: 'Family', adminOnly: true, icon: icon('m2.25 12 8.954-8.955a1.126 1.126 0 0 1 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25') },
   { id: 'categories', label: 'Categories', adminOnly: true, icon: icon('M9.568 3H5.25A2.25 2.25 0 0 0 3 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 0 0 5.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 0 0 9.568 3Z') },
   { id: 'members', label: 'Members', adminOnly: true, icon: icon('M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z') },
@@ -42,7 +46,11 @@ export default function SettingsPage() {
   const { member, session, isAdmin } = useAuth()
   const familyId = member?.family_id
   const visibleTabs = TABS.filter(t => !t.adminOnly || isAdmin)
-  const [activeTab, setActiveTab] = useState('profile')
+  const [params] = useSearchParams()
+  // Deep links (e.g. the home screen's "find numbers" prompt) pick the tab.
+  const [activeTab, setActiveTab] = useState(() =>
+    visibleTabs.some(t => t.id === params.get('tab')) ? params.get('tab') : 'profile'
+  )
 
   return (
     <div className="p-4 md:p-6 lg:p-8 max-w-3xl mx-auto">
@@ -73,6 +81,7 @@ export default function SettingsPage() {
         {activeTab === 'members' && isAdmin && <MemberSettings familyId={familyId} currentMemberId={member?.id} />}
         {activeTab === 'invites' && isAdmin && <InviteManager familyId={familyId} />}
         {activeTab === 'offline' && <OfflineSettings familyId={familyId} />}
+        {activeTab === 'scan' && <BulkNumberScan />}
       </div>
     </div>
   )
@@ -243,6 +252,7 @@ function FamilySettings({ familyId, initialName }) {
 
 function CategorySettings({ familyId }) {
   const { categories, addCategory, updateCategory, deleteCategory } = useCategories(familyId)
+  const { memberIds } = useMemberIds(familyId)
   const { confirm, prompt } = useDialog()
   const toast = useToast()
   const [newCat, setNewCat] = useState('')
@@ -276,9 +286,13 @@ function CategorySettings({ familyId }) {
   }
 
   async function handleDelete(cat) {
+    const numberCount = memberIds.filter(r => r.category_id === cat.id && r.id_number).length
+    const numbersNote = numberCount
+      ? ` ${numberCount} saved ${numberCount === 1 ? 'ID number' : 'ID numbers'} will be deleted.`
+      : ''
     const ok = await confirm({
       title: `Delete "${cat.name}"?`,
-      message: 'Documents in this category are kept, but become uncategorized.',
+      message: `Documents in this category are kept, but become uncategorized.${numbersNote}`,
       confirmLabel: 'Delete',
       destructive: true,
     })

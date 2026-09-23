@@ -58,6 +58,9 @@ export function useCategories(familyId) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['categories', familyId] })
+      // Saved ID numbers cascade with their category.
+      queryClient.invalidateQueries({ queryKey: ['memberIds', familyId] })
+      queryClient.invalidateQueries({ queryKey: ['allDocuments'] })
     },
   })
 

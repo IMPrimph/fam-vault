@@ -120,6 +120,12 @@ html.dark .to-purple-50 { --tw-gradient-to: #1c1917; }
 html.dark .bg-white\/85 { background-color: rgb(28 25 23 / 0.85); }
 html.dark .bg-white\/90 { background-color: rgb(28 25 23 / 0.9); }
 
+/* Row dividers inside person cards and search results. */
+html.dark .divide-stone-100 > :not(:last-child) { border-color: #292524; }
+/* Validation warnings sit on the dark amber tint; the light-theme amber-700
+   is too dim to read there. */
+html.dark .text-amber-700 { color: #fbbf24; }
+
 /* --- Warm --- */
 html.warm .border-stone-200\/60,
 html.warm .border-stone-200 { border-color: #e2d7c2; }
@@ -132,6 +138,7 @@ html.warm .bg-stone-200 { background-color: #ded2ba; }
 html.warm .bg-stone-300 { background-color: #cfc0a4; }
 html.warm .text-stone-400 { color: #b0a08a; }
 html.warm .bg-primary-50 { background-color: #efebfa; }
+html.warm .divide-stone-100 > :not(:last-child) { border-color: #ebe1d0; }
 html.warm .from-stone-50 { --tw-gradient-from: #f7f1e6; }
 html.warm .to-stone-100 { --tw-gradient-to: #ece2d1; }
 html.warm .via-white { --tw-gradient-via: #faf4ea; }
